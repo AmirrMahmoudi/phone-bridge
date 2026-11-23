@@ -23,9 +23,7 @@ public class BLEClient: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        centralManager = CBCentralManager(delegate: self, queue: nil, options: [
-            CBCentralManagerOptionRestoreIdentifierKey: "PhoneBridgeCentralRestoreKey"
-        ])
+        centralManager = CBCentralManager(delegate: self, queue: nil)
     }
 
     public func startScanning() {
@@ -77,11 +75,6 @@ extension BLEClient: CBCentralManagerDelegate {
         default:
             break
         }
-    }
-
-    public func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
-        // بازیابی وضعیت در پس‌زمینه توسط سیستم‌عامل
-        log("سیستم‌عامل اتصال پس‌زمینه بلوتوث را بازیابی کرد.")
     }
 
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {

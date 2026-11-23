@@ -14,7 +14,6 @@
     <array>
         <string>bluetooth-central</string>
         <string>audio</string>
-        <string>voip</string>
     </array>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>PhoneBridge برای اتصال به گوشی اندرویدی جهت دریافت تماس‌ها و پیامک‌ها به بلوتوث نیاز دارد.</string>
