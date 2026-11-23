@@ -24,8 +24,7 @@ public class CallManager: NSObject, ObservableObject {
     public func setupCallKit() {
         guard provider == nil else { return }
         
-        let configuration = CXProviderConfiguration()
-        configuration.localizedName = "PhoneBridge"
+        let configuration = CXProviderConfiguration(localizedName: "PhoneBridge")
         configuration.supportsVideo = false
         configuration.maximumCallsPerCallGroup = 1
         configuration.supportedHandleTypes = [.phoneNumber, .generic]
@@ -125,9 +124,6 @@ extension CallManager: CXProviderDelegate {
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         print("[CallKit] Outgoing call fulfilled by system")
         action.fulfill()
-        if let provider = self.provider, let uuid = activeCallUUID {
-            provider.reportOutgoingCall(with: uuid, connectedAt: Date())
-        }
     }
 
     public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {

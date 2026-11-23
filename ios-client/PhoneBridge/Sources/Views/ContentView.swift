@@ -114,7 +114,19 @@ struct ContentView: View {
                             .padding(.horizontal, 4)
 
                         if bleClient.logs.isEmpty {
-                            ContentUnavailableView("رویدادی ثبت نشده", systemImage: "clock", description: Text("تماس‌ها و پیامک‌های دریافتی اینجا ثبت می‌شوند."))
+                            VStack(spacing: 12) {
+                                Spacer()
+                                Image(systemName: "clock")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.secondary)
+                                Text("رویدادی ثبت نشده")
+                                    .font(.headline)
+                                Text("تماس‌ها و پیامک‌های دریافتی اینجا ثبت می‌شوند.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
                             List(bleClient.logs, id: \.self) { log in
                                 Text(log)
