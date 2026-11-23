@@ -57,20 +57,21 @@ jobs:
       - name: Build iOS Application (Unsigned IPA)
         working-directory: ios-client/PhoneBridge
         run: |
-          xcodebuild clean build \
+          xcodebuild archive \
             -project PhoneBridge.xcodeproj \
             -scheme PhoneBridge \
             -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build/derivedData \
-            CODE_SIGNING_ALLOWED=NO \
+            -destination "generic/platform=iOS" \
+            -archivePath build/PhoneBridge.xcarchive \
+            CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO
 
           # بسته‌بندی فایل به فرمت استاندارد IPA برای Sideloadly
           mkdir -p build/Payload
-          cp -r build/derivedData/Build/Products/Release-iphoneos/PhoneBridge.app build/Payload/
-          cd build && zip -r ../PhoneBridge.ipa Payload
+          cp -r build/PhoneBridge.xcarchive/Products/Applications/PhoneBridge.app build/Payload/
+          cd build && zip -qr ../PhoneBridge.ipa Payload
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4

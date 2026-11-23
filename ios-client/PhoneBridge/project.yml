@@ -9,7 +9,7 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - Sources
+      - path: Sources
     info:
       path: Info.plist
     settings:
@@ -21,3 +21,5 @@ targets:
         CODE_SIGNING_ALLOWED: "NO"
         SWIFT_VERSION: "5.0"
         ENABLE_BITCODE: "NO"
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"

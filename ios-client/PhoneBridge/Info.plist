@@ -22,5 +22,7 @@
     <string>PhoneBridge برای ارتباط با دستگاه اندروید نیازمند بلوتوث است.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>برای صحبت در هنگام مکالمه تماس‌های فوروارد شده به میکروفون نیاز است.</string>
+    <key>UILaunchScreen</key>
+    <dict/>
 </dict>
 </plist>
