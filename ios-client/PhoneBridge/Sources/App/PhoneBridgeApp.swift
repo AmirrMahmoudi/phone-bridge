@@ -11,7 +11,8 @@ struct PhoneBridgeApp: App {
                 .environmentObject(bleClient)
                 .environmentObject(callManager)
                 .onAppear {
-                    // راه‌اندازی با تاخیر و ایمن بعد از ظاهر شدن صفحه
+                    // راه‌اندازی با تاخیر و ایمن بعد از ظاهر شدن صفحه اصلی در UI
+                    bleClient.setupBluetooth()
                     callManager.setupCallKit()
                     
                     callManager.onAnswerCall = { callId in

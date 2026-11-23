@@ -68,9 +68,15 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
 
+          # تزریق و ادغام مستقیم کلیدهای حریم خصوصی Info.plist در خروجی نهایی
+          APP_DIR="build/PhoneBridge.xcarchive/Products/Applications/PhoneBridge.app"
+          /usr/libexec/PlistBuddy -c "Merge Info.plist" "$APP_DIR/Info.plist"
+          echo "=== VERIFYING FINAL INFO.PLIST ==="
+          plutil -p "$APP_DIR/Info.plist"
+
           # بسته‌بندی فایل به فرمت استاندارد IPA برای Sideloadly
           mkdir -p build/Payload
-          cp -r build/PhoneBridge.xcarchive/Products/Applications/PhoneBridge.app build/Payload/
+          cp -r "$APP_DIR" build/Payload/
           cd build && zip -qr ../PhoneBridge.ipa Payload
 
       - name: Upload iOS IPA Artifact

@@ -6,7 +6,7 @@ import UIKit
 public class BLEClient: NSObject, ObservableObject {
     public static let shared = BLEClient()
 
-    private var centralManager: CBCentralManager!
+    private var centralManager: CBCentralManager?
     private var peripheral: CBPeripheral?
     private var commandCharacteristic: CBCharacteristic?
     private var eventCharacteristic: CBCharacteristic?
@@ -23,20 +23,25 @@ public class BLEClient: NSObject, ObservableObject {
 
     override init() {
         super.init()
+    }
+
+    public func setupBluetooth() {
+        guard centralManager == nil else { return }
         centralManager = CBCentralManager(delegate: self, queue: nil)
     }
 
     public func startScanning() {
-        guard centralManager.state == .poweredOn else { return }
+        setupBluetooth()
+        guard let central = centralManager, central.state == .poweredOn else { return }
         log("در حال جستجوی دستگاه اندروید...")
-        centralManager.scanForPeripherals(withServices: [BLEClient.serviceUUID], options: [
+        central.scanForPeripherals(withServices: [BLEClient.serviceUUID], options: [
             CBCentralManagerScanOptionAllowDuplicatesKey: false
         ])
     }
 
     public func disconnect() {
-        if let peripheral = peripheral {
-            centralManager.cancelPeripheralConnection(peripheral)
+        if let peripheral = peripheral, let central = centralManager {
+            central.cancelPeripheralConnection(peripheral)
         }
     }
 
@@ -72,6 +77,9 @@ extension BLEClient: CBCentralManagerDelegate {
         case .poweredOff:
             log("بلوتوث آیفون خاموش است.")
             isConnected = false
+        case .unauthorized:
+            log("خطا: دسترسی به بلوتوث در تنظیمات آیفون تایید نشده است.")
+            isConnected = false
         default:
             break
         }
@@ -80,8 +88,8 @@ extension BLEClient: CBCentralManagerDelegate {
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         log("دستگاه اندروید یافت شد: \(peripheral.name ?? "Android Gateway")")
         self.peripheral = peripheral
-        centralManager.stopScan()
-        centralManager.connect(peripheral, options: [
+        central.stopScan()
+        central.connect(peripheral, options: [
             CBConnectPeripheralOptionNotifyOnConnectionKey: true,
             CBConnectPeripheralOptionNotifyOnDisconnectionKey: true
         ])

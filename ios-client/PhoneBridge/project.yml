@@ -23,3 +23,7 @@ targets:
         ENABLE_BITCODE: "NO"
         INFOPLIST_FILE: Info.plist
         GENERATE_INFOPLIST_FILE: "NO"
+        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "PhoneBridge requires Bluetooth to connect to your secondary Android phone to receive calls and SMS."
+        INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription: "PhoneBridge requires Bluetooth to connect to your secondary Android phone."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "PhoneBridge requires microphone access for call audio."
+        INFOPLIST_KEY_UIBackgroundModes: "bluetooth-central audio"
