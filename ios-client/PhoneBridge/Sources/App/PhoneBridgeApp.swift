@@ -11,7 +11,9 @@ struct PhoneBridgeApp: App {
                 .environmentObject(bleClient)
                 .environmentObject(callManager)
                 .onAppear {
-                    // اتصال هندلرهای CallKit به فرستنده بلوتوث
+                    // راه‌اندازی با تاخیر و ایمن بعد از ظاهر شدن صفحه
+                    callManager.setupCallKit()
+                    
                     callManager.onAnswerCall = { callId in
                         bleClient.sendCommand(["cmd": "ANSWER_CALL", "callId": callId.uuidString])
                         AudioStreamManager.shared.startAudioSession()

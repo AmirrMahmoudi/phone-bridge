@@ -2,11 +2,11 @@ import Foundation
 import CallKit
 import AVFoundation
 
-/// کلاس مدیریت یکپارچه CallKit اپل برای نمایش صفحه تماس بومی سیستم‌عامل
+/// کلاس مدیریت ایمن CallKit با محافظت کامل در برابر کرش‌های سایدلود
 public class CallManager: NSObject, ObservableObject {
     public static let shared = CallManager()
 
-    private let provider: CXProvider
+    private var provider: CXProvider?
     private let callController = CXCallController()
     
     public var onAnswerCall: ((UUID) -> Void)?
@@ -14,22 +14,43 @@ public class CallManager: NSObject, ObservableObject {
 
     @Published public var activeCallUUID: UUID?
     @Published public var callerName: String = ""
+    @Published public var isCallKitAvailable: Bool = false
 
     override init() {
-        let configuration = CXProviderConfiguration(localizedName: "PhoneBridge")
-        configuration.supportsVideo = false
-        configuration.maximumCallsPerCallGroup = 1
-        configuration.supportedHandleTypes = [.phoneNumber, .generic]
-
-        self.provider = CXProvider(configuration: configuration)
         super.init()
-        self.provider.setDelegate(self, queue: nil)
     }
 
-    /// نمایش صفحه تماس ورودی بومی در آیفون (حتی در حالت لاک اسکرین)
+    /// راه‌اندازی ایمن CallKit بعد از لود شدن کامل رابط کاربری
+    public func setupCallKit() {
+        guard provider == nil else { return }
+        
+        do {
+            let configuration = CXProviderConfiguration(localizedName: "PhoneBridge")
+            configuration.supportsVideo = false
+            configuration.maximumCallsPerCallGroup = 1
+            configuration.supportedHandleTypes = [.phoneNumber, .generic]
+
+            let newProvider = CXProvider(configuration: configuration)
+            newProvider.setDelegate(self, queue: nil)
+            self.provider = newProvider
+            self.isCallKitAvailable = true
+            print("[CallKit] CallKit provider initialized safely.")
+        } catch {
+            self.isCallKitAvailable = false
+            print("[CallKit] CallKit not permitted in this sandbox: \(error.localizedDescription)")
+        }
+    }
+
+    /// نمایش صفحه تماس ورودی بومی در آیفون
     public func reportIncomingCall(uuid: UUID, handle: String, callerName: String, completion: (@escaping (Error?) -> Void) = { _ in }) {
         self.activeCallUUID = uuid
         self.callerName = callerName.isEmpty ? handle : callerName
+
+        guard let provider = self.provider else {
+            print("[CallKit] Fallback: CallKit provider not initialized.")
+            completion(nil)
+            return
+        }
 
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(type: .phoneNumber, value: handle)
