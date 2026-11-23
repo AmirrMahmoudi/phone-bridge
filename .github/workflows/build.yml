@@ -24,13 +24,14 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Build Android Debug APK
         working-directory: android-gateway
         run: |
-          gradle wrapper
+          yes | sdkmanager --licenses || true
+          gradle wrapper --gradle-version 8.5 --distribution-type bin
           ./gradlew assembleDebug --stacktrace
 
       - name: Upload Android APK Artifact
@@ -57,7 +58,7 @@ jobs:
         working-directory: ios-client/PhoneBridge
         run: xcodegen generate
 
-      - name: Build iOS Application (Unsigned IPA)
+      - name: Build iOS Application (Ad-hoc / Unsigned IPA)
         working-directory: ios-client/PhoneBridge
         run: |
           xcodebuild clean build \
@@ -66,9 +67,10 @@ jobs:
             -configuration Release \
             -destination "generic/platform=iOS" \
             -derivedDataPath build/derivedData \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="-" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGNING_ALLOWED=YES
 
           # بسته‌بندی فایل به فرمت استاندارد IPA برای Sideloadly
           mkdir -p build/Payload
