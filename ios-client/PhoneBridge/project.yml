@@ -10,8 +10,6 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: Sources
-    info:
-      path: Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.personal.phonebridge
@@ -21,8 +19,12 @@ targets:
         CODE_SIGNING_ALLOWED: "NO"
         SWIFT_VERSION: "5.0"
         ENABLE_BITCODE: "NO"
-        INFOPLIST_FILE: Info.plist
-        GENERATE_INFOPLIST_FILE: "NO"
+        GENERATE_INFOPLIST_FILE: "YES"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: "PhoneBridge"
+        INFOPLIST_KEY_LSRequiresIPhoneOS: "YES"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
         INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: "PhoneBridge requires Bluetooth to connect to your secondary Android phone to receive calls and SMS."
         INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription: "PhoneBridge requires Bluetooth to connect to your secondary Android phone."
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "PhoneBridge requires microphone access for call audio."

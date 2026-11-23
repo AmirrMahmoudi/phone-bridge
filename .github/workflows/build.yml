@@ -68,11 +68,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-          # تزریق و ادغام مستقیم کلیدهای حریم خصوصی Info.plist در خروجی نهایی
           APP_DIR="build/PhoneBridge.xcarchive/Products/Applications/PhoneBridge.app"
-          /usr/libexec/PlistBuddy -c "Merge Info.plist" "$APP_DIR/Info.plist"
+
+          # تایید وجود کلیدهای حیاتی امنیتی در Info.plist نهایی
           echo "=== VERIFYING FINAL INFO.PLIST ==="
           plutil -p "$APP_DIR/Info.plist"
+          echo ""
+          echo "=== Checking for NSBluetoothAlwaysUsageDescription ==="
+          /usr/libexec/PlistBuddy -c "Print :NSBluetoothAlwaysUsageDescription" "$APP_DIR/Info.plist"
+          echo "=== Checking for NSMicrophoneUsageDescription ==="
+          /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$APP_DIR/Info.plist"
 
           # بسته‌بندی فایل به فرمت استاندارد IPA برای Sideloadly
           mkdir -p build/Payload
