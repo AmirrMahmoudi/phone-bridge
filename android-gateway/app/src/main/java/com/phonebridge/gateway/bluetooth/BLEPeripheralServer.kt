@@ -47,6 +47,8 @@ class BLEPeripheralServer(private val context: Context) {
     
     // مدیریت کانال L2CAP برای انتقال صوت
     private var l2capChannelManager: com.phonebridge.gateway.audio.L2CAPChannelManager? = null
+    private var audioBridgeManager: com.phonebridge.gateway.audio.AudioBridgeManager? = null
+    private var audioBridgeManager: com.phonebridge.gateway.audio.AudioBridgeManager? = null
 
     init {
         instance = this
@@ -63,6 +65,9 @@ class BLEPeripheralServer(private val context: Context) {
         setupGattServer()
         startAdvertising()
         
+        // راه‌اندازی AudioBridgeManager
+        audioBridgeManager = com.phonebridge.gateway.audio.AudioBridgeManager()
+        
         // راه‌اندازی کانال L2CAP برای انتقال صوت
         l2capChannelManager = com.phonebridge.gateway.audio.L2CAPChannelManager(bluetoothAdapter!!).apply {
             onConnected = { socket ->
@@ -70,6 +75,7 @@ class BLEPeripheralServer(private val context: Context) {
             }
             onDisconnected = {
                 Log.i(TAG, "L2CAP audio channel disconnected")
+                audioBridgeManager?.stopStreaming()
             }
             startListening()
             
@@ -309,18 +315,27 @@ class BLEPeripheralServer(private val context: Context) {
         if (PhoneBridgeCallService.currentCall != null) {
             PhoneBridgeCallService.answerCurrentCall()
             Log.i(TAG, "Call answered via InCallService.")
+            
+            // شروع استریم صوت بعد از پاسخ به تماس
+            startAudioStreaming()
         } else {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
                 if (context.checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
                     telecom?.acceptRingingCall()
                     Log.i(TAG, "Call answered via TelecomManager.acceptRingingCall()")
+                    
+                    // شروع استریم صوت
+                    startAudioStreaming()
                 }
             }
         }
     }
 
     private fun hangupCall() {
+        // توقف استریم صوت
+        stopAudioStreaming()
+        
         if (PhoneBridgeCallService.currentCall != null) {
             PhoneBridgeCallService.disconnectCurrentCall()
             Log.i(TAG, "Call disconnected via InCallService.")
@@ -350,6 +365,41 @@ class BLEPeripheralServer(private val context: Context) {
         } else {
             Log.e(TAG, "Cannot dial: CALL_PHONE permission not granted.")
         }
+    }
+
+    /**
+     * شروع استریم صوت از طریق کانال L2CAP
+     */
+    private fun startAudioStreaming() {
+        val channelManager = l2capChannelManager
+        val audioManager = audioBridgeManager
+        
+        if (channelManager == null || audioManager == null) {
+            Log.e(TAG, "Cannot start audio streaming: managers not initialized")
+            return
+        }
+        
+        // بررسی اینکه سوکت L2CAP متصل است
+        val socket = channelManager.connectedSocket
+        if (socket != null && socket.isConnected) {
+            Log.i(TAG, "Starting audio streaming via L2CAP")
+            audioManager.startStreaming(socket)
+        } else {
+            Log.w(TAG, "L2CAP socket not connected, waiting for connection...")
+            // تنظیم callback برای شروع streaming بعد از اتصال
+            channelManager.onConnected = { connectedSocket ->
+                Log.i(TAG, "L2CAP connected, starting audio streaming")
+                audioManager.startStreaming(connectedSocket)
+            }
+        }
+    }
+
+    /**
+     * توقف استریم صوت
+     */
+    private fun stopAudioStreaming() {
+        audioBridgeManager?.stopStreaming()
+        Log.i(TAG, "Audio streaming stopped")
     }
 
     /**

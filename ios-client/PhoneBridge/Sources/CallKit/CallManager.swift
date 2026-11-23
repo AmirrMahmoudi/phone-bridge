@@ -129,6 +129,11 @@ extension CallManager: CXProviderDelegate {
     public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         print("[CallKit] Audio session activated by system")
         AudioStreamManager.shared.startAudioSession()
+        
+        // شروع دریافت صدا از کانال L2CAP
+        if let channel = BLEClient.shared.getL2CAPChannel() {
+            AudioStreamManager.shared.startReceiving(channel: channel)
+        }
     }
 
     public func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {

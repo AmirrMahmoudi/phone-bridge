@@ -83,6 +83,11 @@ public class BLEClient: NSObject, ObservableObject {
             self.logs.insert("[\(timestamp)] \(msg)", at: 0)
         }
     }
+    
+    /// دسترسی به مدیر کانال L2CAP برای استفاده در AudioStreamManager
+    public func getL2CAPChannel() -> L2CAPChannelManager? {
+        return l2capManager
+    }
 }
 
 // MARK: - CBCentralManagerDelegate

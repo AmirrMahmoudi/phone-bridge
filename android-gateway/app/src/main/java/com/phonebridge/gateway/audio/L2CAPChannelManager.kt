@@ -18,7 +18,7 @@ class L2CAPChannelManager(private val bluetoothAdapter: BluetoothAdapter) {
     }
 
     private var serverSocket: BluetoothServerSocket? = null
-    private var connectedSocket: BluetoothSocket? = null
+    var connectedSocket: BluetoothSocket? = null
     private var isListening = false
     var currentPsm: Int = 0
         private set
