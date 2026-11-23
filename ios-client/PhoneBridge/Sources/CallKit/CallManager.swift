@@ -16,12 +16,10 @@ public class CallManager: NSObject, ObservableObject {
     @Published public var callerName: String = ""
 
     override init() {
-        let configuration = CXProviderConfiguration()
-        configuration.localizedName = "PhoneBridge"
+        let configuration = CXProviderConfiguration(localizedName: "PhoneBridge")
         configuration.supportsVideo = false
         configuration.maximumCallsPerCallGroup = 1
         configuration.supportedHandleTypes = [.phoneNumber, .generic]
-        configuration.ringtoneSound = "ringtone.caf" // یا رینگ‌تون پیش‌فرض
 
         self.provider = CXProvider(configuration: configuration)
         super.init()
@@ -29,7 +27,7 @@ public class CallManager: NSObject, ObservableObject {
     }
 
     /// نمایش صفحه تماس ورودی بومی در آیفون (حتی در حالت لاک اسکرین)
-    public func reportIncomingCall(uuid: UUID, handle: String, callerName: String, completion: ((Error?) -> Void)? = nil) {
+    public func reportIncomingCall(uuid: UUID, handle: String, callerName: String, completion: (@escaping (Error?) -> Void) = { _ in }) {
         self.activeCallUUID = uuid
         self.callerName = callerName.isEmpty ? handle : callerName
 
@@ -37,7 +35,6 @@ public class CallManager: NSObject, ObservableObject {
         update.remoteHandle = CXHandle(type: .phoneNumber, value: handle)
         update.localizedCallerName = self.callerName
         update.hasVideo = false
-        update.supportsDTMF = true
         update.supportsHolding = false
         update.supportsGrouping = false
         update.supportsUngrouping = false
@@ -48,7 +45,7 @@ public class CallManager: NSObject, ObservableObject {
             } else {
                 print("[CallKit] Incoming call successfully reported to iOS: \(handle)")
             }
-            completion?(error)
+            completion(error)
         }
     }
 
