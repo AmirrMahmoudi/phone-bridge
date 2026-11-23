@@ -26,7 +26,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ایجاد یک رابط کاربری ساده با کد بدون نیاز به فایل XML اضافه
         val layout = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(48, 48, 48, 48)
@@ -46,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val btnSetDefaultDialer = Button(this).apply {
-            text = "تنظیم به عنوان سرویس تماس پیش‌فرض"
+            text = "تنظیم به عنوان سرویس تماس پیش‌فرض (اختیاری)"
             setOnClickListener {
                 requestDefaultDialerRole()
             }
@@ -64,6 +63,7 @@ class MainActivity : AppCompatActivity() {
         val permissions = mutableListOf(
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.ANSWER_PHONE_CALLS,
+            Manifest.permission.CALL_PHONE,
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_SMS,
             Manifest.permission.RECORD_AUDIO
@@ -83,6 +83,16 @@ class MainActivity : AppCompatActivity() {
 
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERMISSION_REQUEST_CODE)
+        } else {
+            // در صورتی که همه دسترسی‌ها از قبل داده شده باشد، سرور را اتوماتیک فعال کن
+            startServer()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            startServer()
         }
     }
 
@@ -105,9 +115,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startServer() {
-        bleServer = BLEPeripheralServer(this)
-        bleServer?.startServer()
-        statusTextView.text = "وضعیت: سرور بلوتوث فعال شد و آماده اتصال آیفون است."
+        if (bleServer == null) {
+            bleServer = BLEPeripheralServer(this)
+            bleServer?.startServer()
+        }
+        statusTextView.text = "وضعیت: سرور بلوتوث فعال و آماده اتصال آیفون ۱۷ است."
         btnToggleServer.isEnabled = false
     }
 }

@@ -24,21 +24,17 @@ public class CallManager: NSObject, ObservableObject {
     public func setupCallKit() {
         guard provider == nil else { return }
         
-        do {
-            let configuration = CXProviderConfiguration(localizedName: "PhoneBridge")
-            configuration.supportsVideo = false
-            configuration.maximumCallsPerCallGroup = 1
-            configuration.supportedHandleTypes = [.phoneNumber, .generic]
+        let configuration = CXProviderConfiguration()
+        configuration.localizedName = "PhoneBridge"
+        configuration.supportsVideo = false
+        configuration.maximumCallsPerCallGroup = 1
+        configuration.supportedHandleTypes = [.phoneNumber, .generic]
 
-            let newProvider = CXProvider(configuration: configuration)
-            newProvider.setDelegate(self, queue: nil)
-            self.provider = newProvider
-            self.isCallKitAvailable = true
-            print("[CallKit] CallKit provider initialized safely.")
-        } catch {
-            self.isCallKitAvailable = false
-            print("[CallKit] CallKit not permitted in this sandbox: \(error.localizedDescription)")
-        }
+        let newProvider = CXProvider(configuration: configuration)
+        newProvider.setDelegate(self, queue: nil)
+        self.provider = newProvider
+        self.isCallKitAvailable = true
+        print("[CallKit] CallKit provider initialized safely.")
     }
 
     /// نمایش صفحه تماس ورودی بومی در آیفون
@@ -70,6 +66,25 @@ public class CallManager: NSObject, ObservableObject {
         }
     }
 
+    /// برقراری تماس خروجی از آیفون با رابط کاربری سیستمی CallKit
+    public func startOutgoingCall(handle: String) {
+        let uuid = UUID()
+        self.activeCallUUID = uuid
+        self.callerName = handle
+
+        let handleObj = CXHandle(type: .phoneNumber, value: handle)
+        let startCallAction = CXStartCallAction(call: uuid, handle: handleObj)
+        let transaction = CXTransaction(action: startCallAction)
+
+        callController.request(transaction) { error in
+            if let error = error {
+                print("[CallKit] Error starting outgoing call: \(error.localizedDescription)")
+            } else {
+                print("[CallKit] Outgoing call started successfully: \(handle)")
+            }
+        }
+    }
+
     /// پایان دادن به تماس در لایه CallKit
     public func endCall(uuid: UUID) {
         let endCallAction = CXEndCallAction(call: uuid)
@@ -91,7 +106,7 @@ extension CallManager: CXProviderDelegate {
     }
 
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
-        print("[CallKit] User answered the call")
+        print("[CallKit] User answered the call on iPhone")
         action.fulfill()
         if let uuid = activeCallUUID {
             onAnswerCall?(uuid)
@@ -105,6 +120,14 @@ extension CallManager: CXProviderDelegate {
             onEndCall?(uuid)
         }
         activeCallUUID = nil
+    }
+
+    public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
+        print("[CallKit] Outgoing call fulfilled by system")
+        action.fulfill()
+        if let provider = self.provider, let uuid = activeCallUUID {
+            provider.reportOutgoingCall(with: uuid, connectedAt: Date())
+        }
     }
 
     public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {

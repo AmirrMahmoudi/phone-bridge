@@ -47,19 +47,29 @@ public class BLEClient: NSObject, ObservableObject {
 
     public func sendCommand(_ dict: [String: Any]) {
         guard let char = commandCharacteristic, let peripheral = peripheral else {
-            log("خطا: دستگاه برای ارسال دستور متصل نیست.")
+            log("خطا: ارتباط با اندروید برای ارسال دستور برقرار نیست.")
             return
         }
         do {
             let data = try JSONSerialization.data(withJSONObject: dict)
             peripheral.writeValue(data, for: char, type: .withResponse)
-            log("دستور ارسال شد: \(dict["cmd"] ?? "")")
+            log("دستور به سامسونگ ارسال شد: \(dict["cmd"] ?? "")")
         } catch {
             log("خطا در سریالایز دستور: \(error)")
         }
     }
 
-    private func log(_ msg: String) {
+    /// برقراری تماس خروجی از طریق سیم‌کارت اندروید
+    public func dial(number: String) {
+        let cleanNumber = number.filter { $0.isNumber || $0 == "+" || $0 == "*" || $0 == "#" }
+        guard !cleanNumber.isEmpty else { return }
+
+        sendCommand(["cmd": "DIAL_CALL", "number": cleanNumber])
+        CallManager.shared.startOutgoingCall(handle: cleanNumber)
+        log("تماس با \(cleanNumber) از طریق سیم‌کارت سامسونگ آغاز شد...")
+    }
+
+    public func log(_ msg: String) {
         DispatchQueue.main.async {
             let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
             self.logs.insert("[\(timestamp)] \(msg)", at: 0)
@@ -72,13 +82,13 @@ extension BLEClient: CBCentralManagerDelegate {
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            log("بلوتوث آیفون روشن و آماده است.")
+            log("بلوتوث آیفون آماده به کار است.")
             startScanning()
         case .poweredOff:
             log("بلوتوث آیفون خاموش است.")
             isConnected = false
         case .unauthorized:
-            log("خطا: دسترسی به بلوتوث در تنظیمات آیفون تایید نشده است.")
+            log("خطا: دسترسی به بلوتوث در تنظیمات تایید نشده است.")
             isConnected = false
         default:
             break
@@ -86,10 +96,10 @@ extension BLEClient: CBCentralManagerDelegate {
     }
 
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        log("دستگاه اندروید یافت شد: \(peripheral.name ?? "Android Gateway")")
+        log("دستگاه اندروید پیدا شد: \(peripheral.name ?? "Android Gateway")")
         self.peripheral = peripheral
-        central.stopScan()
-        central.connect(peripheral, options: [
+        centralManager?.stopScan()
+        centralManager?.connect(peripheral, options: [
             CBConnectPeripheralOptionNotifyOnConnectionKey: true,
             CBConnectPeripheralOptionNotifyOnDisconnectionKey: true
         ])
@@ -97,8 +107,8 @@ extension BLEClient: CBCentralManagerDelegate {
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         self.isConnected = true
-        self.deviceName = peripheral.name ?? "Android Gateway"
-        log("با موفقیت به اندروید متصل شد.")
+        self.deviceName = peripheral.name ?? "Samsung Gateway"
+        log("ارتباط با گوشی سامسونگ با موفقیت برقرار شد ✅")
         peripheral.delegate = self
         peripheral.discoverServices([BLEClient.serviceUUID])
     }
@@ -106,7 +116,7 @@ extension BLEClient: CBCentralManagerDelegate {
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         self.isConnected = false
         self.deviceName = "قطع ارتباط"
-        log("اتصال به اندروید قطع شد. شروع اسکن مجدد...")
+        log("اتصال به سامسونگ قطع شد. تلاش برای اتصال مجدد...")
         startScanning()
     }
 }
@@ -128,7 +138,7 @@ extension BLEClient: CBPeripheralDelegate {
             } else if char.uuid == BLEClient.eventCharUUID {
                 self.eventCharacteristic = char
                 peripheral.setNotifyValue(true, for: char)
-                log("کانال دریافت نوتیفیکیشن‌ها و تماس‌ها فعال شد.")
+                log("کانال دریافت تماس‌ها و پیامک‌ها فعال گردید ⚡️")
             }
         }
     }
@@ -140,7 +150,7 @@ extension BLEClient: CBPeripheralDelegate {
                 handleIncomingEvent(json)
             }
         } catch {
-            log("خطا در پارس پیام دریافتی")
+            log("خطا در پردازش پیام دریافتی")
         }
     }
 
@@ -152,21 +162,21 @@ extension BLEClient: CBPeripheralDelegate {
             let callerNumber = json["callerNumber"] as? String ?? "ناشناس"
             let callerName = json["callerName"] as? String ?? ""
             let callUUID = UUID(uuidString: json["callId"] as? String ?? "") ?? UUID()
-            log("تماس ورودی از: \(callerName.isEmpty ? callerNumber : callerName)")
+            log("📞 تماس ورودی جدید از سامسونگ: \(callerName.isEmpty ? callerNumber : callerName)")
             
-            // فراخوانی رابط کاربری بومی آیفون با CallKit
+            // فراخوانی رابط کاربری بومی آیفون با CallKit (زنگ خوردن تمام‌صفحه آیفون ۱۷)
             CallManager.shared.reportIncomingCall(uuid: callUUID, handle: callerNumber, callerName: callerName)
 
         case "CALL_ENDED":
             if let activeUUID = CallManager.shared.activeCallUUID {
                 CallManager.shared.endCall(uuid: activeUUID)
-                log("تماس پایان یافت.")
+                log("تماس به پایان رسید.")
             }
 
         case "SMS_INCOMING":
             let sender = json["sender"] as? String ?? "ناشناس"
             let body = json["body"] as? String ?? ""
-            log("پیامک از \(sender): \(body)")
+            log("💬 پیامک جدید از \(sender): \(body)")
 
         case "DEVICE_STATUS":
             if let battery = json["batteryLevel"] as? Int {
