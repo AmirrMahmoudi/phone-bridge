@@ -32,6 +32,7 @@ class BLEPeripheralServer(private val context: Context) {
         val SERVICE_UUID: UUID = UUID.fromString("0000A001-0000-1000-8000-00805F9B34FB")
         val COMMAND_CHAR_UUID: UUID = UUID.fromString("0000A002-0000-1000-8000-00805F9B34FB")
         val EVENT_CHAR_UUID: UUID = UUID.fromString("0000A003-0000-1000-8000-00805F9B34FB")
+        val AUDIO_PSM_CHAR_UUID: UUID = UUID.fromString("0000A004-0000-1000-8000-00805F9B34FB")
         val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
     }
 
@@ -39,9 +40,13 @@ class BLEPeripheralServer(private val context: Context) {
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var gattServer: BluetoothGattServer? = null
     private var eventCharacteristic: BluetoothGattCharacteristic? = null
+    private var psmCharacteristic: BluetoothGattCharacteristic? = null
 
     // نگهداری لیست امن تمامی آیفون‌های متصل شده
     private val connectedDevices = Collections.synchronizedSet(mutableSetOf<BluetoothDevice>())
+    
+    // مدیریت کانال L2CAP برای انتقال صوت
+    private var l2capChannelManager: com.phonebridge.gateway.audio.L2CAPChannelManager? = null
 
     init {
         instance = this
@@ -57,6 +62,23 @@ class BLEPeripheralServer(private val context: Context) {
 
         setupGattServer()
         startAdvertising()
+        
+        // راه‌اندازی کانال L2CAP برای انتقال صوت
+        l2capChannelManager = com.phonebridge.gateway.audio.L2CAPChannelManager(bluetoothAdapter!!).apply {
+            onConnected = { socket ->
+                Log.i(TAG, "L2CAP audio channel connected")
+            }
+            onDisconnected = {
+                Log.i(TAG, "L2CAP audio channel disconnected")
+            }
+            startListening()
+            
+            // به‌روزرسانی مقدار کاراکتریستیک PSM پس از دریافت PSM از سیستم
+            if (currentPsm > 0) {
+                updatePsmCharacteristic(currentPsm)
+                Log.i(TAG, "PSM characteristic updated with value: $currentPsm")
+            }
+        }
     }
 
     private fun setupGattServer() {
@@ -123,6 +145,29 @@ class BLEPeripheralServer(private val context: Context) {
                     sendDeviceStatus(device)
                 }
             }
+
+            override fun onCharacteristicReadRequest(
+                device: BluetoothDevice?,
+                requestId: Int,
+                offset: Int,
+                characteristic: BluetoothGattCharacteristic?
+            ) {
+                super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
+                
+                // پاسخ به درخواست خواندن PSM
+                if (characteristic?.uuid == AUDIO_PSM_CHAR_UUID) {
+                    val psm = l2capChannelManager?.currentPsm ?: 0
+                    // تبدیل PSM به فرمت 2-بایتی little-endian
+                    val psmBytes = ByteArray(2)
+                    psmBytes[0] = (psm and 0xFF).toByte()
+                    psmBytes[1] = ((psm shr 8) and 0xFF).toByte()
+                    
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, psmBytes)
+                    Log.i(TAG, "PSM read request handled: $psm")
+                } else {
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
+                }
+            }
         }
 
         gattServer = bluetoothManager?.openGattServer(context, gattCallback)
@@ -148,6 +193,14 @@ class BLEPeripheralServer(private val context: Context) {
         )
         eventCharacteristic?.addDescriptor(configDescriptor)
         service.addCharacteristic(eventCharacteristic)
+
+        // کاراکتریستیک PSM برای کانال L2CAP (Read)
+        psmCharacteristic = BluetoothGattCharacteristic(
+            AUDIO_PSM_CHAR_UUID,
+            BluetoothGattCharacteristic.PROPERTY_READ,
+            BluetoothGattCharacteristic.PERMISSION_READ
+        )
+        service.addCharacteristic(psmCharacteristic)
 
         gattServer?.addService(service)
         Log.i(TAG, "GATT Server configured and service added.")
@@ -297,5 +350,34 @@ class BLEPeripheralServer(private val context: Context) {
         } else {
             Log.e(TAG, "Cannot dial: CALL_PHONE permission not granted.")
         }
+    }
+
+    /**
+     * به‌روزرسانی مقدار کاراکتریستیک PSM
+     */
+    private fun updatePsmCharacteristic(psm: Int) {
+        val psmBytes = ByteArray(2)
+        psmBytes[0] = (psm and 0xFF).toByte()
+        psmBytes[1] = ((psm shr 8) and 0xFF).toByte()
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // برای API 33+
+            psmCharacteristic?.setValue(psmBytes)
+        } else {
+            @Suppress("DEPRECATION")
+            psmCharacteristic?.value = psmBytes
+        }
+    }
+
+    /**
+     * توقف سرور و بستن تمام اتصالات
+     */
+    fun stopServer() {
+        l2capChannelManager?.stopListening()
+        l2capChannelManager = null
+        gattServer?.close()
+        gattServer = null
+        connectedDevices.clear()
+        Log.i(TAG, "BLE Server stopped")
     }
 }

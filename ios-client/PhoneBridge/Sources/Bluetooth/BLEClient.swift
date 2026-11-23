@@ -10,16 +10,21 @@ public class BLEClient: NSObject, ObservableObject {
     private var peripheral: CBPeripheral?
     private var commandCharacteristic: CBCharacteristic?
     private var eventCharacteristic: CBCharacteristic?
+    private var psmCharacteristic: CBCharacteristic?
 
     public static let serviceUUID = CBUUID(string: "0000A001-0000-1000-8000-00805F9B34FB")
     public static let commandCharUUID = CBUUID(string: "0000A002-0000-1000-8000-00805F9B34FB")
     public static let eventCharUUID = CBUUID(string: "0000A003-0000-1000-8000-00805F9B34FB")
+    public static let psmCharUUID = CBUUID(string: "0000A004-0000-1000-8000-00805F9B34FB")
 
     @Published public var isConnected: Bool = false
     @Published public var deviceName: String = "قطع ارتباط"
     @Published public var batteryLevel: Int = 0
     @Published public var simCarrier: String = "-"
     @Published public var logs: [String] = []
+    
+    // مدیر کانال L2CAP برای انتقال صوت
+    private var l2capManager: L2CAPChannelManager?
 
     override init() {
         super.init()
@@ -43,6 +48,9 @@ public class BLEClient: NSObject, ObservableObject {
         if let peripheral = peripheral, let central = centralManager {
             central.cancelPeripheralConnection(peripheral)
         }
+        // بستن کانال L2CAP در صورت قطع اتصال
+        l2capManager?.disconnect()
+        l2capManager = nil
     }
 
     public func sendCommand(_ dict: [String: Any]) {
@@ -116,6 +124,9 @@ extension BLEClient: CBCentralManagerDelegate {
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         self.isConnected = false
         self.deviceName = "قطع ارتباط"
+        // بستن کانال L2CAP
+        l2capManager?.disconnect()
+        l2capManager = nil
         log("اتصال به سامسونگ قطع شد. تلاش برای اتصال مجدد...")
         startScanning()
     }
@@ -126,7 +137,11 @@ extension BLEClient: CBPeripheralDelegate {
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else { return }
         for service in services where service.uuid == BLEClient.serviceUUID {
-            peripheral.discoverCharacteristics([BLEClient.commandCharUUID, BLEClient.eventCharUUID], for: service)
+            peripheral.discoverCharacteristics([
+                BLEClient.commandCharUUID,
+                BLEClient.eventCharUUID,
+                BLEClient.psmCharUUID
+            ], for: service)
         }
     }
 
@@ -139,12 +154,32 @@ extension BLEClient: CBPeripheralDelegate {
                 self.eventCharacteristic = char
                 peripheral.setNotifyValue(true, for: char)
                 log("کانال دریافت تماس‌ها و پیامک‌ها فعال گردید ⚡️")
+            } else if char.uuid == BLEClient.psmCharUUID {
+                self.psmCharacteristic = char
+                // خواندن مقدار PSM از اندروید
+                peripheral.readValue(for: char)
+                log("در حال خواندن PSM از سرور اندروید...")
             }
         }
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard let data = characteristic.value else { return }
+        
+        // پردازش PSM دریافتی از کاراکتریستیک
+        if characteristic.uuid == BLEClient.psmCharUUID {
+            if data.count >= 2 {
+                // تبدیل 2 بایت little-endian به UInt16
+                let psm = UInt16(data[0]) | (UInt16(data[1]) << 8)
+                log("📡 Read PSM \(psm) from GATT")
+                
+                // ایجاد و اتصال مدیر L2CAP
+                connectL2CAPChannel(to: peripheral, psm: psm)
+            }
+            return
+        }
+        
+        // پردازش رویدادهای GATT معمولی
         do {
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 handleIncomingEvent(json)
@@ -152,6 +187,34 @@ extension BLEClient: CBPeripheralDelegate {
         } catch {
             log("خطا در پردازش پیام دریافتی")
         }
+    }
+    
+    /// برقراری اتصال کانال L2CAP با PSM دریافتی
+    private func connectL2CAPChannel(to peripheral: CBPeripheral, psm: UInt16) {
+        l2capManager = L2CAPChannelManager()
+        l2capManager?.onConnected = { [weak self] in
+            self?.log("✅ L2CAP channel opened to PSM \(psm)")
+        }
+        l2capManager?.onDisconnected = { [weak self] in
+            self?.log("❌ L2CAP channel closed")
+        }
+        l2capManager?.onDataReceived = { [weak self] data in
+            // پردازش داده‌های صوتی دریافتی (فعلا فقط لاگ)
+            self?.log("📥 Received \(data.count) bytes audio data")
+        }
+        
+        l2capManager?.connect(to: peripheral, psm: psm) { [weak self] success, error in
+            if success {
+                self?.log("🎵 L2CAP audio channel ready")
+            } else {
+                self?.log("❌ Failed to connect L2CAP: \(error?.localizedDescription ?? "Unknown")")
+            }
+        }
+    }
+    
+    /// فراخوانی پس از باز شدن کانال L2CAP
+    public func peripheral(_ peripheral: CBPeripheral, didOpen channel: CBL2CAPChannel?, error: Error?) {
+        l2capManager?.didOpen(channel: channel, error: error)
     }
 
     private func handleIncomingEvent(_ json: [String: Any]) {
