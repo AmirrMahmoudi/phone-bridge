@@ -81,9 +81,9 @@ fun StatusCard(
                     Icon(
                         imageVector = when {
                             batteryLevel > 80 -> Icons.Default.BatteryFull
-                            batteryLevel > 50 -> Icons.Default.Battery80
-                            batteryLevel > 20 -> Icons.Default.Battery50
-                            else -> Icons.Default.Battery20
+                            batteryLevel > 50 -> Icons.Default.Battery5Bar
+                            batteryLevel > 20 -> Icons.Default.Battery3Bar
+                            else -> Icons.Default.Battery1Bar
                         },
                         contentDescription = "Battery",
                         modifier = Modifier.size(20.dp),

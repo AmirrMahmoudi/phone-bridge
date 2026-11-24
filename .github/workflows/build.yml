@@ -29,17 +29,15 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
-          echo "=== LOCATING GENERATED APK ==="
-          find . -name "*.apk"
-          mkdir -p build-apks
-          find . -name "*.apk" -exec cp {} build-apks/ \;
-          ls -la build-apks/
+          mkdir -p ../android-apk
+          find app/build/outputs/apk -name "*.apk" -exec cp {} ../android-apk/ \;
+          ls -la ../android-apk/
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: PhoneBridge-Android-APK
-          path: android-gateway/build-apks/
+          path: android-apk/
           retention-days: 7
 
   # ---------------------------------------------
