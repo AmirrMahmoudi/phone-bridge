@@ -67,7 +67,7 @@ class BLEPeripheralServer(private val context: Context) {
         startAdvertising()
         
         // راه‌اندازی AudioBridgeManager
-        audioBridgeManager = com.phonebridge.gateway.audio.AudioBridgeManager()
+        audioBridgeManager = com.phonebridge.gateway.audio.AudioBridgeManager(context)
         
         // راه‌اندازی کانال L2CAP برای انتقال صوت
         l2capChannelManager = com.phonebridge.gateway.audio.L2CAPChannelManager(bluetoothAdapter!!).apply {
@@ -376,6 +376,10 @@ class BLEPeripheralServer(private val context: Context) {
             }
             "HANGUP_CALL" -> {
                 hangupCall()
+            }
+            "SET_MUTE" -> {
+                val muted = json.optBoolean("muted", false)
+                audioBridgeManager?.setMute(muted)
             }
         }
     }

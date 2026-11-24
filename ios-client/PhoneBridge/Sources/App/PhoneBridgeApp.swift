@@ -18,6 +18,9 @@ struct PhoneBridgeApp: App {
                     callManager.onAnswerCall = { callId in
                         bleClient.sendCommand(["cmd": "ANSWER_CALL", "callId": callId.uuidString])
                         AudioStreamManager.shared.startAudioSession()
+                        if let channel = bleClient.getL2CAPChannel() {
+                            AudioStreamManager.shared.startReceiving(channel: channel)
+                        }
                     }
                     
                     callManager.onEndCall = { callId in

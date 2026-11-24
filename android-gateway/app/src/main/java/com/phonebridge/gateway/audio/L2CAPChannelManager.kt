@@ -36,8 +36,13 @@ class L2CAPChannelManager(private val bluetoothAdapter: BluetoothAdapter) {
         }
 
         try {
-            // ایجاد سوکت L2CAP با PSM دینامیک (سیستم خودکار PSM اختصاص می‌دهد)
-            serverSocket = bluetoothAdapter.listenUsingL2capChannel()
+            // ایجاد سوکت L2CAP (ابتدا insecure برای سازگاری اتصال مستقیم با iOS بدون الزام به PIN جفت‌سازی، سپس امن)
+            serverSocket = try {
+                bluetoothAdapter.listenUsingInsecureL2capChannel()
+            } catch (e: Exception) {
+                Log.w(TAG, "listenUsingInsecureL2capChannel not supported, falling back to listenUsingL2capChannel", e)
+                bluetoothAdapter.listenUsingL2capChannel()
+            }
             currentPsm = serverSocket?.psm ?: 0
 
             if (currentPsm == 0) {

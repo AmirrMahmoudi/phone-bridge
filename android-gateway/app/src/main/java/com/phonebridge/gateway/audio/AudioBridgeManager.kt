@@ -1,6 +1,7 @@
 package com.phonebridge.gateway.audio
 
 import android.bluetooth.BluetoothSocket
+import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.AudioTrack
@@ -17,7 +18,7 @@ import kotlin.concurrent.thread
 /**
  * مدیریت نمونه‌برداری صوتی مکالمه برای انتقال به آیفون با کدک Opus
  */
-class AudioBridgeManager {
+class AudioBridgeManager(private val context: Context) {
     companion object {
         private const val TAG = "AudioBridgeManager"
         private const val SAMPLE_RATE = 16000
@@ -35,9 +36,22 @@ class AudioBridgeManager {
     private var opusDecoder: OpusDecoder? = null
     
     private var isStreaming = false
+    var isMuted = false
+        private set
+
     private var captureThread: Thread? = null
     private var playbackThread: Thread? = null
     private var l2capSocket: BluetoothSocket? = null
+
+    /**
+     * تنظیم وضعیت میوت میکروفون
+     */
+    fun setMute(muted: Boolean) {
+        this.isMuted = muted
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        audioManager?.isMicrophoneMute = muted
+        Log.i(TAG, "Audio bridge mute set to: $muted")
+    }
 
     /**
      * شروع استریم دوطرفه صوت با استفاده از سوکت L2CAP
@@ -52,6 +66,10 @@ class AudioBridgeManager {
         isStreaming = true
 
         try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
+            audioManager?.isSpeakerphoneOn = false
+
             initializeAudioComponents()
             Log.i(TAG, "Audio streaming started با Opus codec (16kHz mono, 20ms frames, 20kbps)")
         } catch (e: Exception) {
@@ -72,17 +90,32 @@ class AudioBridgeManager {
         
         opusDecoder = OpusDecoder(SAMPLE_RATE, CHANNELS)
 
-        // راه‌اندازی AudioRecord برای ضبط صدا
+        // راه‌اندازی AudioRecord برای ضبط صدا با تلاش از چند منبع صوتی سازگار
         val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG_IN, AUDIO_FORMAT)
-        audioRecord = AudioRecord(
+        val bufferSize = maxOf(minBufferSize, FRAME_SIZE * 2 * 4)
+
+        val sourcesToTry = arrayOf(
             MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-            SAMPLE_RATE,
-            CHANNEL_CONFIG_IN,
-            AUDIO_FORMAT,
-            maxOf(minBufferSize, FRAME_SIZE * 2 * 4)
+            MediaRecorder.AudioSource.MIC,
+            MediaRecorder.AudioSource.VOICE_RECOGNITION
         )
 
-        // راه‌اندازی AudioTrack برای پخش صدا
+        for (source in sourcesToTry) {
+            try {
+                val record = AudioRecord(source, SAMPLE_RATE, CHANNEL_CONFIG_IN, AUDIO_FORMAT, bufferSize)
+                if (record.state == AudioRecord.STATE_INITIALIZED) {
+                    audioRecord = record
+                    Log.i(TAG, "AudioRecord initialized with source: $source")
+                    break
+                } else {
+                    record.release()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed initializing AudioRecord with source $source", e)
+            }
+        }
+
+        // راه‌اندازی AudioTrack برای پخش صدای دریافتی از آیفون
         val minPlaybackBuffer = AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG_OUT, AUDIO_FORMAT)
         audioTrack = AudioTrack(
             AudioManager.STREAM_VOICE_CALL,
@@ -136,6 +169,11 @@ class AudioBridgeManager {
             val outputStream = l2capSocket?.outputStream
 
             while (isStreaming && outputStream != null) {
+                if (isMuted) {
+                    Thread.sleep(20)
+                    continue
+                }
+
                 val samplesRead = audioRecord?.read(pcmBuffer, 0, FRAME_SIZE) ?: 0
 
                 if (samplesRead == FRAME_SIZE) {
@@ -179,34 +217,28 @@ class AudioBridgeManager {
                 val sizeBytes = ByteArray(2)
                 val sizeRead = inputStream.read(sizeBytes)
 
-                if (sizeRead != 2) {
-                    Log.w(TAG, "خطا در خواندن size header")
-                    continue
-                }
+                if (sizeRead == 2) {
+                    val packetSize = (sizeBytes[0].toInt() and 0xFF) or ((sizeBytes[1].toInt() and 0xFF) shl 8)
 
-                val packetSize = (sizeBytes[0].toInt() and 0xFF) or ((sizeBytes[1].toInt() and 0xFF) shl 8)
+                    if (packetSize in 1..opusPacket.size) {
+                        // خواندن داده بسته Opus
+                        var totalRead = 0
+                        while (totalRead < packetSize) {
+                            val bytesRead = inputStream.read(opusPacket, totalRead, packetSize - totalRead)
+                            if (bytesRead < 0) break
+                            totalRead += bytesRead
+                        }
 
-                if (packetSize <= 0 || packetSize > opusPacket.size) {
-                    Log.w(TAG, "اندازه بسته نامعتبر: $packetSize")
-                    continue
-                }
+                        if (totalRead == packetSize) {
+                            // دیکد Opus به PCM
+                            val decodedSamples = opusDecoder?.decode(opusPacket, 0, packetSize, pcmBuffer, 0, FRAME_SIZE, false) ?: 0
 
-                // خواندن داده Opus
-                var totalRead = 0
-                while (totalRead < packetSize && isStreaming) {
-                    val bytesRead = inputStream.read(opusPacket, totalRead, packetSize - totalRead)
-                    if (bytesRead < 0) break
-                    totalRead += bytesRead
-                }
-
-                if (totalRead == packetSize) {
-                    // دیکد با Opus
-                    val decodedSamples = opusDecoder?.decode(opusPacket, 0, packetSize, pcmBuffer, 0, FRAME_SIZE, false) ?: 0
-
-                    if (decodedSamples > 0) {
-                        // پخش صدا
-                        audioTrack?.write(pcmBuffer, 0, decodedSamples)
-                        Log.v(TAG, "Opus decode/play: $decodedSamples samples from $packetSize bytes")
+                            if (decodedSamples > 0) {
+                                // پخش از طریق AudioTrack
+                                audioTrack?.write(pcmBuffer, 0, decodedSamples)
+                                Log.v(TAG, "Opus decode/play: $decodedSamples samples")
+                            }
+                        }
                     }
                 }
             }
@@ -219,10 +251,16 @@ class AudioBridgeManager {
     }
 
     /**
-     * توقف استریم صوت
+     * توقف استریم صوت و آزادسازی منابع
      */
     fun stopStreaming() {
+        if (!isStreaming) return
+
         isStreaming = false
+        l2capSocket = null
+
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        audioManager?.mode = AudioManager.MODE_NORMAL
 
         captureThread?.interrupt()
         playbackThread?.interrupt()
@@ -252,11 +290,9 @@ class AudioBridgeManager {
      */
     fun setAudioRouting(useSpeaker: Boolean) {
         try {
-            audioTrack?.let { track ->
-                // برای API 26 و بالاتر می‌توان از setPreferredDevice استفاده کرد
-                // اما برای سادگی، از AudioManager استفاده می‌کنیم که در BLEPeripheralServer مدیریت می‌شود
-                Log.i(TAG, "Audio routing changed to: ${if (useSpeaker) "Speaker" else "Earpiece"}")
-            }
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.isSpeakerphoneOn = useSpeaker
+            Log.i(TAG, "Audio routing changed to: ${if (useSpeaker) "Speaker" else "Earpiece"}")
         } catch (e: Exception) {
             Log.e(TAG, "خطا در تغییر مسیر صوت", e)
         }

@@ -11,6 +11,7 @@ public class AudioStreamManager: NSObject {
     private var opusEncoder: OpaquePointer?
     private var opusDecoder: OpaquePointer?
     private var isRunning = false
+    public var isMuted: Bool = false
     
     private var l2capChannel: L2CAPChannelManager?
     private var receiveThread: Thread?
@@ -149,6 +150,7 @@ public class AudioStreamManager: NSObject {
 
     /// پردازش بافر ورودی: تبدیل به PCM 16-bit، کدگذاری با Opus و ارسال
     private func processInputBuffer(_ buffer: AVAudioPCMBuffer) {
+        guard !isMuted else { return }
         guard let encoder = opusEncoder else { return }
         
         // تبدیل به PCM 16-bit در صورت نیاز
@@ -226,7 +228,7 @@ public class AudioStreamManager: NSObject {
     }
 
     /// دریافت داده صوتی از کانال L2CAP
-    private func receiveAudioData(_ data: Data) {
+    public func receiveAudioData(_ data: Data) {
         // پردازش بسته‌های Opus دریافتی
         processReceivedPacket(data)
     }

@@ -37,33 +37,46 @@ public class CallManager: NSObject, ObservableObject {
         print("[CallKit] CallKit provider initialized safely.")
     }
 
-    /// نمایش صفحه تماس ورودی بومی در آیفون
-    public func reportIncomingCall(uuid: UUID, handle: String, callerName: String, completion: (@escaping (Error?) -> Void) = { _ in }) {
-        self.activeCallUUID = uuid
-        self.callerName = callerName.isEmpty ? handle : callerName
-
-        guard let provider = self.provider else {
-            print("[CallKit] Fallback: CallKit provider not initialized.")
-            completion(nil)
-            return
-        }
-
+    /// نمایش صفحه تماس ورودی بومی در آیفون یا به‌روزرسانی نام و شماره
+    public func reportOrUpdateIncomingCall(uuid: UUID, handle: String, callerName: String, completion: (@escaping (Error?) -> Void) = { _ in }) {
+        let displayName = callerName.isEmpty ? handle : callerName
+        
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(type: .phoneNumber, value: handle)
-        update.localizedCallerName = self.callerName
+        update.localizedCallerName = displayName
         update.hasVideo = false
         update.supportsHolding = false
         update.supportsGrouping = false
         update.supportsUngrouping = false
-
-        provider.reportNewIncomingCall(with: uuid, update: update) { error in
-            if let error = error {
-                print("[CallKit] Error reporting call: \(error.localizedDescription)")
-            } else {
-                print("[CallKit] Incoming call successfully reported to iOS: \(handle)")
-            }
-            completion(error)
+        
+        guard let provider = self.provider else {
+            print("[CallKit] Provider not ready")
+            completion(nil)
+            return
         }
+        
+        if self.activeCallUUID == uuid {
+            self.callerName = displayName
+            provider.reportCall(with: uuid, updated: update)
+            print("[CallKit] Updated call details: \(displayName) (\(handle))")
+            completion(nil)
+        } else {
+            self.activeCallUUID = uuid
+            self.callerName = displayName
+            provider.reportNewIncomingCall(with: uuid, update: update) { error in
+                if let error = error {
+                    print("[CallKit] Error reporting call: \(error.localizedDescription)")
+                } else {
+                    print("[CallKit] Incoming call reported: \(displayName)")
+                }
+                completion(error)
+            }
+        }
+    }
+
+    /// متد کمکی برای گزارش تماس
+    public func reportIncomingCall(uuid: UUID, handle: String, callerName: String, completion: (@escaping (Error?) -> Void) = { _ in }) {
+        reportOrUpdateIncomingCall(uuid: uuid, handle: handle, callerName: callerName, completion: completion)
     }
 
     /// @deprecated متد دیگر استفاده نمی‌شود - تماس‌های خروجی فقط از طریق اپ Phone بومی آیفون
@@ -111,6 +124,13 @@ extension CallManager: CXProviderDelegate {
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         print("[CallKit] Outgoing call fulfilled by system")
         action.fulfill()
+    }
+
+    public func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
+        print("[CallKit] User toggled mute: \(action.isMuted)")
+        action.fulfill()
+        AudioStreamManager.shared.isMuted = action.isMuted
+        BLEClient.shared.sendCommand(["cmd": "SET_MUTE", "muted": action.isMuted])
     }
 
     public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {

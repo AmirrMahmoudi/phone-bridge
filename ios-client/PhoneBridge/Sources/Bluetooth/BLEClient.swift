@@ -311,18 +311,24 @@ extension BLEClient: CBPeripheralDelegate {
         l2capManager = L2CAPChannelManager()
         l2capManager?.onConnected = { [weak self] in
             self?.log("✅ L2CAP channel opened to PSM \(psm)")
+            if let mgr = self?.l2capManager {
+                AudioStreamManager.shared.startReceiving(channel: mgr)
+            }
         }
         l2capManager?.onDisconnected = { [weak self] in
             self?.log("❌ L2CAP channel closed")
         }
-        l2capManager?.onDataReceived = { [weak self] data in
-            // پردازش داده‌های صوتی دریافتی (فعلا فقط لاگ)
-            self?.log("📥 Received \(data.count) bytes audio data")
+        l2capManager?.onDataReceived = { data in
+            // ارسال مستقیم بسته‌های صوتی Opus دریافتی به موتور دیکد و پخش
+            AudioStreamManager.shared.receiveAudioData(data)
         }
         
         l2capManager?.connect(to: peripheral, psm: psm) { [weak self] success, error in
             if success {
                 self?.log("🎵 L2CAP audio channel ready")
+                if let mgr = self?.l2capManager {
+                    AudioStreamManager.shared.startReceiving(channel: mgr)
+                }
             } else {
                 self?.log("❌ Failed to connect L2CAP: \(error?.localizedDescription ?? "Unknown")")
             }
@@ -340,16 +346,16 @@ extension BLEClient: CBPeripheralDelegate {
         switch type {
         case "CALL_INCOMING":
             let callerNumber = json["callerNumber"] as? String ?? "ناشناس"
-            let callerName = json["callerName"] as? String ?? ""
+            let callerName = json["callerName"] as? String ?? callerNumber
             let callUUID = UUID(uuidString: json["callId"] as? String ?? "") ?? UUID()
-            log("📞 تماس ورودی جدید از سامسونگ: \(callerName.isEmpty ? callerNumber : callerName)")
+            let displayName = callerName.isEmpty ? callerNumber : callerName
+            log("📞 تماس ورودی جدید: \(displayName) (\(callerNumber))")
             
             // ثبت در ActivityLog
-            let displayName = callerName.isEmpty ? callerNumber : callerName
             onActivityEvent?("phone.arrow.down.left", "تماس ورودی", displayName, nil, nil)
             
-            // فراخوانی رابط کاربری بومی آیفون با CallKit (زنگ خوردن تمام‌صفحه آیفون ۱۷)
-            CallManager.shared.reportIncomingCall(uuid: callUUID, handle: callerNumber, callerName: callerName)
+            // فراخوانی رابط کاربری بومی آیفون با CallKit (با قابلیت به‌روزرسانی زنده)
+            CallManager.shared.reportOrUpdateIncomingCall(uuid: callUUID, handle: callerNumber, callerName: displayName)
 
         case "CALL_ENDED":
             if let activeUUID = CallManager.shared.activeCallUUID {

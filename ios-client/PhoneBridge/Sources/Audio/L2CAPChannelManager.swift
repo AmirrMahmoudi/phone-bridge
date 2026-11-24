@@ -70,8 +70,8 @@ public class L2CAPChannelManager: NSObject {
         inputStream?.delegate = self
         outputStream?.delegate = self
         
-        inputStream?.schedule(in: .current, forMode: .default)
-        outputStream?.schedule(in: .current, forMode: .default)
+        inputStream?.schedule(in: .main, forMode: .common)
+        outputStream?.schedule(in: .main, forMode: .common)
         
         inputStream?.open()
         outputStream?.open()
@@ -92,8 +92,8 @@ public class L2CAPChannelManager: NSObject {
         inputStream?.close()
         outputStream?.close()
         
-        inputStream?.remove(from: .current, forMode: .default)
-        outputStream?.remove(from: .current, forMode: .default)
+        inputStream?.remove(from: .main, forMode: .common)
+        outputStream?.remove(from: .main, forMode: .common)
         
         inputStream = nil
         outputStream = nil

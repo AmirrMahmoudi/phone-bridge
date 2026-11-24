@@ -121,11 +121,17 @@ class PhoneBridgeForegroundService : Service() {
         }
     }
 
-    fun handleIncomingNumber(number: String) {
+    private var incomingCallerName: String? = null
+    private var currentCallId: String? = null
+
+    fun handleIncomingNumber(number: String, contactName: String? = null) {
         this.incomingNumber = number
-        if (lastCallState == TelephonyManager.CALL_STATE_RINGING) {
-            broadcastIncomingCall(number)
+        val name = contactName ?: com.phonebridge.gateway.util.ContactHelper.getContactName(this, number) ?: number
+        this.incomingCallerName = name
+        if (currentCallId == null) {
+            currentCallId = UUID.randomUUID().toString()
         }
+        broadcastIncomingCall(number, name)
     }
 
     fun handleCallStateChange(state: Int, phoneNumber: String? = null) {
@@ -133,8 +139,22 @@ class PhoneBridgeForegroundService : Service() {
         Log.i(TAG, "Call state changed: $state, number: $phoneNumber")
         when (state) {
             TelephonyManager.CALL_STATE_RINGING -> {
-                val number = phoneNumber ?: incomingNumber ?: "تماس ورودی"
-                broadcastIncomingCall(number)
+                if (currentCallId == null) {
+                    currentCallId = UUID.randomUUID().toString()
+                }
+                val number = phoneNumber ?: incomingNumber
+                if (!number.isNullOrEmpty()) {
+                    val name = incomingCallerName ?: com.phonebridge.gateway.util.ContactHelper.getContactName(this, number) ?: number
+                    broadcastIncomingCall(number, name)
+                } else {
+                    // تاخیر کوتاه ۲۰۰ میلی‌ثانیه‌ای تا اینتنت حاوی شماره از CallReceiver برسد
+                    serviceScope.launch {
+                        delay(250)
+                        if (lastCallState == TelephonyManager.CALL_STATE_RINGING && incomingNumber == null) {
+                            broadcastIncomingCall("ناشناس", "تماس ورودی")
+                        }
+                    }
+                }
             }
             TelephonyManager.CALL_STATE_OFFHOOK -> {
                 Log.i(TAG, "Call in progress / answered")
@@ -144,26 +164,29 @@ class PhoneBridgeForegroundService : Service() {
                     val payload = JSONObject().apply {
                         put("type", "CALL_ENDED")
                         put("reason", "DISCONNECTED")
+                        put("callId", currentCallId ?: "")
                     }
                     BLEPeripheralServer.instance?.sendNotification(payload.toString())
                     Log.i(TAG, "CALL_ENDED notification sent to iPhone")
                 }
                 incomingNumber = null
+                incomingCallerName = null
+                currentCallId = null
             }
         }
         lastCallState = state
     }
 
-    private fun broadcastIncomingCall(number: String) {
+    private fun broadcastIncomingCall(number: String, callerName: String = number) {
         val payload = JSONObject().apply {
             put("type", "CALL_INCOMING")
-            put("callId", UUID.randomUUID().toString())
+            put("callId", currentCallId ?: UUID.randomUUID().toString().also { currentCallId = it })
             put("callerNumber", number)
-            put("callerName", number)
+            put("callerName", callerName)
             put("timestamp", System.currentTimeMillis() / 1000)
         }
         BLEPeripheralServer.instance?.sendNotification(payload.toString())
-        Log.i(TAG, "CALL_INCOMING notification sent to iPhone: $number")
+        Log.i(TAG, "CALL_INCOMING notification sent to iPhone: $number (Name: $callerName)")
     }
 
     private fun acquireWakeLock() {
