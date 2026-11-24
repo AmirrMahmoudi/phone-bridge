@@ -16,10 +16,19 @@ public class AudioStreamManager: NSObject {
     private var l2capChannel: L2CAPChannelManager?
     private var receiveThread: Thread?
     
+    // Audio processing for echo cancellation and noise suppression
+    private var audioProcessor: AudioProcessing?
+    private var referenceAudioBuffer: [Float] = [] // برای echo cancellation
+    
     private let sampleRate: Double = 16000
     private let frameSize: Int = 320 // 20ms at 16kHz
     private let channels: Int = 1
-    private let bitrate: Int = 20000 // 20kbps
+    
+    // Adaptive bitrate based on connection quality
+    private var currentBitrate: Int = 20000 // Start at 20kbps
+    private let minBitrate: Int = 12000     // 12kbps for poor connection
+    private let maxBitrate: Int = 32000     // 32kbps for excellent connection
+    private var bitrateAdjustmentTimer: Timer?
 
     override init() {
         super.init()
@@ -38,11 +47,14 @@ public class AudioStreamManager: NSObject {
             // راه‌اندازی کدک‌های Opus
             setupOpusCodecs()
             
+            // راه‌اندازی audio processor
+            audioProcessor = AudioProcessing(frameSize: frameSize, sampleRate: Int(sampleRate))
+            
             // راه‌اندازی AVAudioEngine
             setupAudioEngine()
             
             self.isRunning = true
-            print("[Audio] Audio session started با Opus codec (16kHz mono, 20ms frames, 20kbps)")
+            print("[Audio] Audio session started با Opus codec + Echo Cancellation + Noise Suppression (16kHz mono, 20ms frames)")
         } catch {
             print("[Audio] Failed to activate audio session: \(error)")
             // تلاش مجدد یک بار
@@ -81,6 +93,10 @@ public class AudioStreamManager: NSObject {
         opusEncoder = opus_encoder_create(Int32(sampleRate), Int32(channels), OPUS_APPLICATION_VOIP, &encError)
         if encError != OPUS_OK || opusEncoder == nil {
             print("[Audio] ❌ Error creating Opus encoder: \(encError)")
+        } else {
+            // تنظیم bitrate اولیه
+            opus_encoder_ctl(opusEncoder, OPUS_SET_BITRATE_REQUEST, Int32(currentBitrate))
+            print("[Audio] Opus encoder initialized with bitrate: \(currentBitrate) bps")
         }
         
         var decError: Int32 = 0
@@ -89,7 +105,65 @@ public class AudioStreamManager: NSObject {
             print("[Audio] ❌ Error creating Opus decoder: \(decError)")
         }
         
-        print("[Audio] Opus encoder/decoder initialized")
+        // شروع adaptive bitrate adjustment
+        startAdaptiveBitrateAdjustment()
+        
+        print("[Audio] Opus encoder/decoder initialized with adaptive bitrate (\(minBitrate)-\(maxBitrate) bps)")
+    }
+    
+    /**
+     * شروع تنظیم خودکار bitrate بر اساس RSSI
+     */
+    private func startAdaptiveBitrateAdjustment() {
+        bitrateAdjustmentTimer?.invalidate()
+        bitrateAdjustmentTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            self?.adjustBitrateBasedOnConnectionQuality()
+        }
+    }
+    
+    /**
+     * تنظیم bitrate بر اساس کیفیت اتصال (RSSI)
+     */
+    private func adjustBitrateBasedOnConnectionQuality() {
+        guard let bleClient = BLEClient.shared as BLEClient?,
+              bleClient.isConnected else {
+            return
+        }
+        
+        let rssi = bleClient.rssi
+        let targetBitrate: Int
+        
+        // محاسبه target bitrate بر اساس RSSI
+        switch rssi {
+        case -50...0:        // Excellent signal (>= -50 dBm)
+            targetBitrate = maxBitrate  // 32kbps
+        case -60..<(-50):    // Good signal (-60 to -50 dBm)
+            targetBitrate = 24000       // 24kbps
+        case -70..<(-60):    // Fair signal (-70 to -60 dBm)
+            targetBitrate = 20000       // 20kbps
+        case -80..<(-70):    // Poor signal (-80 to -70 dBm)
+            targetBitrate = 16000       // 16kbps
+        default:             // Very poor (<= -80 dBm)
+            targetBitrate = minBitrate  // 12kbps
+        }
+        
+        // فقط اگر تغییر قابل توجه باشد (>= 2kbps)
+        if abs(targetBitrate - currentBitrate) >= 2000 {
+            currentBitrate = targetBitrate
+            
+            // به‌روزرسانی encoder
+            if let encoder = opusEncoder {
+                opus_encoder_ctl(encoder, OPUS_SET_BITRATE_REQUEST, Int32(currentBitrate))
+                print("[Audio] 🎚️ Bitrate adjusted to \(currentBitrate/1000)kbps (RSSI: \(rssi) dBm)")
+            }
+        }
+    }
+    
+    /**
+     * دریافت bitrate فعلی برای نمایش در UI
+     */
+    public func getCurrentBitrate() -> Int {
+        return currentBitrate
     }
 
     private func setupAudioEngine() {
@@ -148,7 +222,7 @@ public class AudioStreamManager: NSObject {
         }
     }
 
-    /// پردازش بافر ورودی: تبدیل به PCM 16-bit، کدگذاری با Opus و ارسال
+    /// پردازش بافر ورودی: تبدیل به PCM 16-bit، اعمال audio processing، کدگذاری با Opus و ارسال
     private func processInputBuffer(_ buffer: AVAudioPCMBuffer) {
         guard !isMuted else { return }
         guard let encoder = opusEncoder else { return }
@@ -158,9 +232,30 @@ public class AudioStreamManager: NSObject {
             return
         }
         
+        // تبدیل به Float array برای processing
+        var floatBuffer = int16ToFloat(int16Buffer)
+        
+        // اعمال audio processing (Echo Cancellation + Noise Suppression)
+        if let processor = audioProcessor {
+            // استفاده از reference signal برای echo cancellation
+            let reference = referenceAudioBuffer.isEmpty ? nil : referenceAudioBuffer
+            processor.processAudio(inputBuffer: &floatBuffer, referenceSignal: reference)
+            
+            // Log stats هر 50 فریم (یک بار در ثانیه)
+            if Int.random(in: 0..<50) == 0 {
+                let stats = processor.getStats()
+                if stats.isVoiceActive {
+                    print("[Audio] 🎤 Voice detected - Noise: \(String(format: "%.1f", stats.noiseFloorDB))dB, Signal: \(String(format: "%.1f", stats.averageEnergyDB))dB")
+                }
+            }
+        }
+        
+        // تبدیل برگشت به Int16
+        let processedInt16 = floatToInt16(floatBuffer)
+        
         // کدگذاری با Opus
         var opusPacket = [UInt8](repeating: 0, count: 1024)
-        let encodedBytes: Int32 = int16Buffer.withUnsafeBytes { rawPcmPtr in
+        let encodedBytes: Int32 = processedInt16.withUnsafeBytes { rawPcmPtr in
             guard let pcmPtr = rawPcmPtr.bindMemory(to: Int16.self).baseAddress else { return 0 }
             return opus_encode(encoder, pcmPtr, Int32(frameSize), &opusPacket, Int32(opusPacket.count))
         }
@@ -169,8 +264,32 @@ public class AudioStreamManager: NSObject {
             let encodedData = Data(bytes: opusPacket, count: Int(encodedBytes))
             // ارسال از طریق L2CAP
             sendAudioPacket(encodedData)
-            print("[Audio] Opus encode/send: \(encodedData.count) bytes")
         }
+    }
+    
+    /// تبدیل Int16 Data به Float Array
+    private func int16ToFloat(_ data: Data) -> [Float] {
+        var floats = [Float](repeating: 0.0, count: data.count / 2)
+        data.withUnsafeBytes { rawPtr in
+            let int16Ptr = rawPtr.bindMemory(to: Int16.self)
+            for i in 0..<floats.count {
+                floats[i] = Float(int16Ptr[i]) / 32768.0
+            }
+        }
+        return floats
+    }
+    
+    /// تبدیل Float Array به Int16 Data
+    private func floatToInt16(_ floats: [Float]) -> Data {
+        var data = Data(count: floats.count * 2)
+        data.withUnsafeMutableBytes { rawPtr in
+            let int16Ptr = rawPtr.bindMemory(to: Int16.self)
+            for i in 0..<floats.count {
+                let clamped = max(-1.0, min(1.0, floats[i]))
+                int16Ptr[i] = Int16(clamped * 32767.0)
+            }
+        }
+        return data
     }
 
     /// تبدیل AVAudioPCMBuffer به Data با فرمت PCM 16-bit
@@ -271,10 +390,17 @@ public class AudioStreamManager: NSObject {
         }
         
         if decodedSamples > 0 {
+            // ذخیره reference signal برای echo cancellation
             let pcmData = Data(bytes: pcmBuffer, count: Int(decodedSamples) * 2)
+            referenceAudioBuffer = int16ToFloat(pcmData)
+            
+            // محدود کردن سایز buffer
+            if referenceAudioBuffer.count > frameSize * 2 {
+                referenceAudioBuffer.removeFirst(referenceAudioBuffer.count - frameSize)
+            }
+            
             if let audioPcmBuffer = createPCMBuffer(from: pcmData, frameCount: Int(decodedSamples)) {
                 player.scheduleBuffer(audioPcmBuffer, completionHandler: nil)
-                print("[Audio] Opus decode/play: \(decodedSamples) samples from \(opusData.count) bytes")
             }
         }
     }
@@ -309,6 +435,10 @@ public class AudioStreamManager: NSObject {
     public func stopAudioSession() {
         guard isRunning else { return }
         
+        // توقف adaptive bitrate timer
+        bitrateAdjustmentTimer?.invalidate()
+        bitrateAdjustmentTimer = nil
+        
         // توقف audio engine
         audioEngine?.inputNode.removeTap(onBus: 0)
         playerNode?.stop()
@@ -328,6 +458,8 @@ public class AudioStreamManager: NSObject {
         
         l2capChannel = nil
         receiveBuffer = Data()
+        audioProcessor = nil
+        referenceAudioBuffer = []
         
         let audioSession = AVAudioSession.sharedInstance()
         do {
