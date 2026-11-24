@@ -7,6 +7,8 @@ struct ActivityItem: Identifiable {
     let title: String
     let subtitle: String
     let timestamp: Date
+    let fullBody: String? // برای ذخیره متن کامل پیامک
+    let sender: String? // برای ذخیره شماره/نام فرستنده SMS
 }
 
 /// مدیریت لیست رویدادهای اپلیکیشن (تماس‌ها، پیامک‌ها، تغییرات اتصال)
@@ -14,8 +16,8 @@ class ActivityLog: ObservableObject {
     @Published var items: [ActivityItem] = []
     
     /// افزودن رویداد جدید با محدودیت 50 آیتم
-    func add(icon: String, title: String, subtitle: String = "") {
-        let newItem = ActivityItem(icon: icon, title: title, subtitle: subtitle, timestamp: Date())
+    func add(icon: String, title: String, subtitle: String = "", fullBody: String? = nil, sender: String? = nil) {
+        let newItem = ActivityItem(icon: icon, title: title, subtitle: subtitle, timestamp: Date(), fullBody: fullBody, sender: sender)
         DispatchQueue.main.async {
             self.items.insert(newItem, at: 0)
             if self.items.count > 50 {
@@ -69,8 +71,8 @@ struct ContentView: View {
     
     /// راه‌اندازی لاگینگ خودکار رویدادها از BLEClient
     private func setupActivityLogging() {
-        bleClient.onActivityEvent = { icon, title, subtitle in
-            activityLog.add(icon: icon, title: title, subtitle: subtitle)
+        bleClient.onActivityEvent = { icon, title, subtitle, fullBody, sender in
+            activityLog.add(icon: icon, title: title, subtitle: subtitle, fullBody: fullBody, sender: sender)
         }
     }
 }
@@ -309,34 +311,53 @@ struct ActivityFeed: View {
 /// نمایش یک رویداد در لیست
 struct ActivityItemRow: View {
     let item: ActivityItem
+    @State private var showSMSDetail = false
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: item.icon)
-                .font(.system(size: 24))
-                .foregroundColor(.blue)
-                .frame(width: 36, height: 36)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.body)
-                    .foregroundColor(.primary)
+        Button(action: {
+            if item.icon == "message" && item.fullBody != nil {
+                showSMSDetail = true
+            }
+        }) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: item.icon)
+                    .font(.system(size: 24))
+                    .foregroundColor(.blue)
+                    .frame(width: 36, height: 36)
                 
-                if !item.subtitle.isEmpty {
-                    Text(item.subtitle)
-                        .font(.caption)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.title)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                    
+                    if !item.subtitle.isEmpty {
+                        Text(item.subtitle)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Text(item.timestamp, style: .relative)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                 }
                 
-                Text(item.timestamp, style: .relative)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                Spacer()
+                
+                if item.icon == "message" {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            
-            Spacer()
+            .padding(.vertical, 12)
+            .padding(.horizontal)
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal)
+        .buttonStyle(PlainButtonStyle())
+        .sheet(isPresented: $showSMSDetail) {
+            if let body = item.fullBody, let sender = item.sender {
+                SMSDetailView(sender: sender, body: body, timestamp: item.timestamp)
+            }
+        }
     }
 }
 

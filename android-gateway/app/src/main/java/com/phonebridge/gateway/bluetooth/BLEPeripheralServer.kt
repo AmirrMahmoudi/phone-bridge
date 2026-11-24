@@ -96,9 +96,31 @@ class BLEPeripheralServer(private val context: Context) {
                         Log.i(TAG, "iPhone connected: ${device.address}")
                         connectedDevices.add(device)
                         sendDeviceStatus(device)
+                        
+                        // به‌روزرسانی ViewModel
+                        com.phonebridge.gateway.MainActivity.instance?.runOnUiThread {
+                            (context as? com.phonebridge.gateway.MainActivity)?.let { activity ->
+                                val viewModelStore = activity.viewModelStore
+                                val viewModel = androidx.lifecycle.ViewModelProvider(viewModelStore, androidx.lifecycle.ViewModelProvider.NewInstanceFactory())
+                                    .get(com.phonebridge.gateway.viewmodel.PhoneBridgeViewModel::class.java)
+                                viewModel.setConnectedDevice(device.address)
+                            }
+                        }
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                         Log.i(TAG, "iPhone disconnected: ${device.address}")
                         connectedDevices.remove(device)
+                        
+                        // به‌روزرسانی ViewModel
+                        com.phonebridge.gateway.MainActivity.instance?.runOnUiThread {
+                            (context as? com.phonebridge.gateway.MainActivity)?.let { activity ->
+                                val viewModelStore = activity.viewModelStore
+                                val viewModel = androidx.lifecycle.ViewModelProvider(viewModelStore, androidx.lifecycle.ViewModelProvider.NewInstanceFactory())
+                                    .get(com.phonebridge.gateway.viewmodel.PhoneBridgeViewModel::class.java)
+                                if (connectedDevices.isEmpty()) {
+                                    viewModel.setConnectedDevice(null)
+                                }
+                            }
+                        }
                     }
                 }
             }

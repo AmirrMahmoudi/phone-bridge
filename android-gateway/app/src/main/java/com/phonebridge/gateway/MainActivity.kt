@@ -1,62 +1,59 @@
 package com.phonebridge.gateway
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
-import android.telecom.TelecomManager
-import android.widget.Button
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
+import android.telephony.TelephonyManager
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.phonebridge.gateway.bluetooth.BLEPeripheralServer
+import com.phonebridge.gateway.service.PhoneBridgeForegroundService
+import com.phonebridge.gateway.ui.screens.MainScreen
+import com.phonebridge.gateway.ui.theme.PhoneBridgeTheme
+import com.phonebridge.gateway.viewmodel.PhoneBridgeViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-class MainActivity : AppCompatActivity() {
+/**
+ * اکتیویتی اصلی اپلیکیشن Phone Bridge با Jetpack Compose
+ */
+class MainActivity : ComponentActivity() {
 
-    private lateinit var statusTextView: TextView
-    private lateinit var btnToggleServer: Button
+    private val viewModel: PhoneBridgeViewModel by viewModels()
     private var bleServer: BLEPeripheralServer? = null
+    private var audioManager: AudioManager? = null
 
     companion object {
         private const val PERMISSION_REQUEST_CODE = 101
+        var instance: MainActivity? = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val layout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(48, 48, 48, 48)
-        }
-
-        statusTextView = TextView(this).apply {
-            text = "وضعیت: در انتظار اعطای مجوزها و راه‌اندازی سرور"
-            textSize = 18f
-            setPadding(0, 0, 0, 32)
-        }
-
-        btnToggleServer = Button(this).apply {
-            text = "شروع سرور بلوتوث"
-            setOnClickListener {
-                startServer()
+        instance = this
+        
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        
+        setContent {
+            PhoneBridgeTheme {
+                MainScreen(
+                    viewModel = viewModel,
+                    onToggleSpeaker = { toggleSpeaker() }
+                )
             }
         }
-
-        val btnSetDefaultDialer = Button(this).apply {
-            text = "تنظیم به عنوان سرویس تماس پیش‌فرض (اختیاری)"
-            setOnClickListener {
-                requestDefaultDialerRole()
-            }
-        }
-
-        layout.addView(statusTextView)
-        layout.addView(btnToggleServer)
-        layout.addView(btnSetDefaultDialer)
-        setContentView(layout)
 
         checkAndRequestPermissions()
+        startDeviceStatusUpdates()
     }
 
     private fun checkAndRequestPermissions() {
@@ -66,8 +63,13 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.CALL_PHONE,
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_SMS,
-            Manifest.permission.RECORD_AUDIO
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.READ_CONTACTS
         )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
@@ -84,33 +86,18 @@ class MainActivity : AppCompatActivity() {
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERMISSION_REQUEST_CODE)
         } else {
-            // در صورتی که همه دسترسی‌ها از قبل داده شده باشد، سرور را اتوماتیک فعال کن
             startServer()
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_REQUEST_CODE) {
             startServer()
-        }
-    }
-
-    private fun requestDefaultDialerRole() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = getSystemService(android.app.role.RoleManager::class.java)
-            if (roleManager != null && roleManager.isRoleAvailable(android.app.role.RoleManager.ROLE_DIALER)) {
-                val intent = roleManager.createRequestRoleIntent(android.app.role.RoleManager.ROLE_DIALER)
-                startActivity(intent)
-            }
-        } else {
-            val telecomManager = getSystemService(TelecomManager::class.java)
-            if (telecomManager != null && telecomManager.defaultDialerPackage != packageName) {
-                val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
-                    putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
-                }
-                startActivity(intent)
-            }
         }
     }
 
@@ -118,8 +105,59 @@ class MainActivity : AppCompatActivity() {
         if (bleServer == null) {
             bleServer = BLEPeripheralServer(this)
             bleServer?.startServer()
+            viewModel.setBleActive(true)
+            
+            // شروع سرویس Foreground
+            val serviceIntent = Intent(this, PhoneBridgeForegroundService::class.java).apply {
+                action = PhoneBridgeForegroundService.ACTION_START
+                putExtra(PhoneBridgeForegroundService.EXTRA_MESSAGE, "سرور BLE فعال است")
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
         }
-        statusTextView.text = "وضعیت: سرور بلوتوث فعال و آماده اتصال آیفون ۱۷ است."
-        btnToggleServer.isEnabled = false
+    }
+
+    /**
+     * تغییر وضعیت اسپیکر
+     */
+    private fun toggleSpeaker() {
+        val currentSpeaker = viewModel.speakerEnabled.value
+        val newSpeaker = !currentSpeaker
+        
+        audioManager?.let { am ->
+            am.mode = AudioManager.MODE_IN_COMMUNICATION
+            am.isSpeakerphoneOn = newSpeaker
+            viewModel.setSpeakerEnabled(newSpeaker)
+        }
+    }
+
+    /**
+     * به‌روزرسانی دوره‌ای وضعیت دستگاه
+     */
+    private fun startDeviceStatusUpdates() {
+        lifecycleScope.launch {
+            while (true) {
+                updateDeviceStatus()
+                delay(5000) // هر 5 ثانیه یک‌بار
+            }
+        }
+    }
+
+    private fun updateDeviceStatus() {
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+        val batteryLevel = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 0
+
+        val telephonyManager = getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+        val carrierName = telephonyManager?.networkOperatorName ?: ""
+
+        viewModel.updateDeviceStatus(batteryLevel, 0, carrierName)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        instance = null
     }
 }

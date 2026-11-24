@@ -222,6 +222,21 @@ class AudioBridgeManager {
         }
     }
 
+    /**
+     * تغییر مسیر صدا بین اسپیکر و گوشی
+     */
+    fun setAudioRouting(useSpeaker: Boolean) {
+        try {
+            audioTrack?.let { track ->
+                // برای API 26 و بالاتر می‌توان از setPreferredDevice استفاده کرد
+                // اما برای سادگی، از AudioManager استفاده می‌کنیم که در BLEPeripheralServer مدیریت می‌شود
+                Log.i(TAG, "Audio routing changed to: ${if (useSpeaker) "Speaker" else "Earpiece"}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "خطا در تغییر مسیر صوت", e)
+        }
+    }
+
     // سازگاری با کد قدیمی
     @Deprecated("Use startStreaming instead")
     fun startCapturing(onAudioPacket: (ByteArray) -> Unit) {

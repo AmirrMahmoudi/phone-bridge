@@ -1,6 +1,7 @@
 import Foundation
 import CoreBluetooth
 import UIKit
+import UserNotifications
 
 /// کلاینت بلوتوث آیفون برای اتصال به سرور اندروید
 public class BLEClient: NSObject, ObservableObject {
@@ -27,7 +28,7 @@ public class BLEClient: NSObject, ObservableObject {
     private var l2capManager: L2CAPChannelManager?
     
     // Callback برای ثبت رویدادها در ActivityLog
-    public var onActivityEvent: ((String, String, String) -> Void)?
+    public var onActivityEvent: ((String, String, String, String?, String?) -> Void)?
 
     override init() {
         super.init()
@@ -232,7 +233,7 @@ extension BLEClient: CBPeripheralDelegate {
             
             // ثبت در ActivityLog
             let displayName = callerName.isEmpty ? callerNumber : callerName
-            onActivityEvent?("phone.arrow.down.left", "تماس ورودی", displayName)
+            onActivityEvent?("phone.arrow.down.left", "تماس ورودی", displayName, nil, nil)
             
             // فراخوانی رابط کاربری بومی آیفون با CallKit (زنگ خوردن تمام‌صفحه آیفون ۱۷)
             CallManager.shared.reportIncomingCall(uuid: callUUID, handle: callerNumber, callerName: callerName)
@@ -241,14 +242,21 @@ extension BLEClient: CBPeripheralDelegate {
             if let activeUUID = CallManager.shared.activeCallUUID {
                 CallManager.shared.endCall(uuid: activeUUID)
                 log("تماس به پایان رسید.")
-                onActivityEvent?("phone.down", "تماس پایان یافت", "")
+                onActivityEvent?("phone.down", "تماس پایان یافت", "", nil, nil)
             }
 
         case "SMS_INCOMING":
             let sender = json["sender"] as? String ?? "ناشناس"
+            let senderName = json["senderName"] as? String ?? ""
             let body = json["body"] as? String ?? ""
-            log("💬 پیامک جدید از \(sender): \(body)")
-            onActivityEvent?("message", "پیامک دریافتی", "از \(sender): \(body.prefix(30))\(body.count > 30 ? "..." : "")")
+            let displayName = senderName.isEmpty ? sender : senderName
+            log("💬 پیامک جدید از \(displayName): \(body)")
+            
+            let preview = "از \(displayName): \(body.prefix(30))\(body.count > 30 ? "..." : "")"
+            onActivityEvent?("message", "پیامک دریافتی", preview, body, displayName)
+            
+            // نمایش نوتیفیکیشن محلی برای SMS
+            showSMSNotification(sender: displayName, body: body)
 
         case "DEVICE_STATUS":
             if let battery = json["batteryLevel"] as? Int {
@@ -260,6 +268,28 @@ extension BLEClient: CBPeripheralDelegate {
 
         default:
             break
+        }
+    }
+    
+    /// نمایش نوتیفیکیشن محلی برای پیامک دریافتی
+    private func showSMSNotification(sender: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "پیامک جدید"
+        content.subtitle = "از: \(sender)"
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = "SMS_CATEGORY"
+        
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil // نمایش فوری
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                self.log("خطا در نمایش نوتیفیکیشن: \(error.localizedDescription)")
+            }
         }
     }
 }

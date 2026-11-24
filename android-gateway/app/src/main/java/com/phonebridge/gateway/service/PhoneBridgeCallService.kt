@@ -44,6 +44,36 @@ class PhoneBridgeCallService : InCallService() {
                         put("timestamp", System.currentTimeMillis() / 1000)
                     }
                     BLEPeripheralServer.instance?.sendNotification(payload.toString())
+                    
+                    // به‌روزرسانی ViewModel
+                    com.phonebridge.gateway.MainActivity.instance?.runOnUiThread {
+                        com.phonebridge.gateway.MainActivity.instance?.let { activity ->
+                            val viewModelStore = activity.viewModelStore
+                            val viewModel = androidx.lifecycle.ViewModelProvider(viewModelStore, androidx.lifecycle.ViewModelProvider.NewInstanceFactory())
+                                .get(com.phonebridge.gateway.viewmodel.PhoneBridgeViewModel::class.java)
+                            viewModel.setActiveCall(
+                                com.phonebridge.gateway.viewmodel.CallState(
+                                    callId = UUID.randomUUID().toString(),
+                                    callerNumber = handle,
+                                    callerName = callerName.ifEmpty { null },
+                                    startTime = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Call.STATE_ACTIVE -> {
+                    Log.d(TAG, "Call is now active")
+                    // به‌روزرسانی وضعیت صوت
+                    com.phonebridge.gateway.MainActivity.instance?.runOnUiThread {
+                        com.phonebridge.gateway.MainActivity.instance?.let { activity ->
+                            val viewModelStore = activity.viewModelStore
+                            val viewModel = androidx.lifecycle.ViewModelProvider(viewModelStore, androidx.lifecycle.ViewModelProvider.NewInstanceFactory())
+                                .get(com.phonebridge.gateway.viewmodel.PhoneBridgeViewModel::class.java)
+                            viewModel.setAudioStreaming(true)
+                        }
+                    }
                 }
 
                 Call.STATE_DISCONNECTED -> {
@@ -54,6 +84,16 @@ class PhoneBridgeCallService : InCallService() {
                     }
                     BLEPeripheralServer.instance?.sendNotification(payload.toString())
                     currentCall = null
+                    
+                    // به‌روزرسانی ViewModel
+                    com.phonebridge.gateway.MainActivity.instance?.runOnUiThread {
+                        com.phonebridge.gateway.MainActivity.instance?.let { activity ->
+                            val viewModelStore = activity.viewModelStore
+                            val viewModel = androidx.lifecycle.ViewModelProvider(viewModelStore, androidx.lifecycle.ViewModelProvider.NewInstanceFactory())
+                                .get(com.phonebridge.gateway.viewmodel.PhoneBridgeViewModel::class.java)
+                            viewModel.endCall()
+                        }
+                    }
                 }
             }
         }
