@@ -3,7 +3,7 @@ import SwiftUI
 /// صفحه نمایش جزئیات کامل پیامک
 struct SMSDetailView: View {
     let sender: String
-    let body: String
+    let messageBody: String
     let timestamp: Date
     
     @Environment(\.dismiss) var dismiss
@@ -48,7 +48,7 @@ struct SMSDetailView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        Text(body)
+                        Text(messageBody)
                             .font(.body)
                             .textSelection(.enabled)
                             .lineLimit(nil)
@@ -100,7 +100,7 @@ struct SMSDetailView: View {
     
     /// کپی کردن متن پیام به کلیپ‌بورد
     private func copyMessage() {
-        UIPasteboard.general.string = body
+        UIPasteboard.general.string = messageBody
         showCopyConfirmation = true
         
         // پنهان کردن پیام تایید بعد از 2 ثانیه
@@ -122,7 +122,7 @@ struct SMSDetailView: View {
 #Preview {
     SMSDetailView(
         sender: "09123456789",
-        body: "این یک پیام تستی است که برای نمایش در حالت پیش‌نمایش استفاده می‌شود.",
+        messageBody: "این یک پیام تستی است که برای نمایش در حالت پیش‌نمایش استفاده می‌شود.",
         timestamp: Date()
     )
 }

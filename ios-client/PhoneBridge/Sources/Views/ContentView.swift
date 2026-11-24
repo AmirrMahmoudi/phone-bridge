@@ -355,7 +355,7 @@ struct ActivityItemRow: View {
         .buttonStyle(PlainButtonStyle())
         .sheet(isPresented: $showSMSDetail) {
             if let body = item.fullBody, let sender = item.sender {
-                SMSDetailView(sender: sender, body: body, timestamp: item.timestamp)
+                SMSDetailView(sender: sender, messageBody: body, timestamp: item.timestamp)
             }
         }
     }
