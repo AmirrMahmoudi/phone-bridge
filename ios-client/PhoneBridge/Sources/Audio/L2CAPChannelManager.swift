@@ -2,19 +2,23 @@ import Foundation
 import CoreBluetooth
 
 /// مدیر کانال L2CAP برای دریافت صدا از اندروید در آیفون
-class L2CAPChannelManager: NSObject {
+public class L2CAPChannelManager: NSObject {
     
     private var channel: CBL2CAPChannel?
     private var inputStream: InputStream?
     private var outputStream: OutputStream?
     private var isConnected = false
     
-    var onConnected: (() -> Void)?
-    var onDisconnected: (() -> Void)?
-    var onDataReceived: ((Data) -> Void)?
+    public var onConnected: (() -> Void)?
+    public var onDisconnected: (() -> Void)?
+    public var onDataReceived: ((Data) -> Void)?
+    
+    public override init() {
+        super.init()
+    }
     
     /// اتصال به کانال L2CAP با استفاده از PSM دریافتی از GATT
-    func connect(to peripheral: CBPeripheral, psm: UInt16, completion: @escaping (Bool, Error?) -> Void) {
+    public func connect(to peripheral: CBPeripheral, psm: UInt16, completion: @escaping (Bool, Error?) -> Void) {
         print("📡 [L2CAP] Attempting to open L2CAP channel to PSM \(psm)...")
         
         peripheral.openL2CAPChannel(CBL2CAPPSM(psm))
@@ -29,7 +33,7 @@ class L2CAPChannelManager: NSObject {
     private let retryDelays: [TimeInterval] = [1.0, 2.0, 4.0]
     
     /// فراخوانی پس از باز شدن کانال L2CAP (باید از CBPeripheralDelegate صدا زده شود)
-    func didOpen(channel: CBL2CAPChannel?, error: Error?) {
+    public func didOpen(channel: CBL2CAPChannel?, error: Error?) {
         if let error = error {
             print("❌ [L2CAP] Failed to open channel: \(error.localizedDescription)")
             
@@ -39,7 +43,7 @@ class L2CAPChannelManager: NSObject {
                 retryCount += 1
                 print("🔄 [L2CAP] Retrying in \(delay) seconds (attempt \(retryCount)/\(maxRetries))...")
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     // تلاش مجدد با همان PSM
                     // نیاز به نگهداری peripheral و psm در property
                 }
@@ -82,7 +86,7 @@ class L2CAPChannelManager: NSObject {
     }
     
     /// قطع اتصال و بستن استریم‌ها
-    func disconnect() {
+    public func disconnect() {
         guard isConnected else { return }
         
         inputStream?.close()
@@ -101,7 +105,7 @@ class L2CAPChannelManager: NSObject {
     }
     
     /// ارسال داده از طریق کانال L2CAP
-    func send(data: Data) {
+    public func send(data: Data) {
         guard isConnected, let outputStream = outputStream else {
             print("⚠️ [L2CAP] Cannot send data: not connected")
             return
