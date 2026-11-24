@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.phonebridge.gateway.ui.components.ActiveCallDisplay
+import com.phonebridge.gateway.ui.components.BatteryOptimizationCard
 import com.phonebridge.gateway.ui.components.StatusCard
 import com.phonebridge.gateway.viewmodel.ActivityItem
 import com.phonebridge.gateway.viewmodel.ActivityType
@@ -67,6 +68,11 @@ fun MainScreen(
                     signalStrength = signalStrength,
                     carrierName = carrierName
                 )
+            }
+            
+            // کارت مدیریت Battery Optimization
+            item {
+                BatteryOptimizationCard()
             }
             
             // نمایش تماس فعال (در صورت وجود)

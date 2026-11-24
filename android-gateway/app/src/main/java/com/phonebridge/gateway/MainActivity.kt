@@ -23,6 +23,7 @@ import com.phonebridge.gateway.bluetooth.BLEPeripheralServer
 import com.phonebridge.gateway.service.PhoneBridgeForegroundService
 import com.phonebridge.gateway.ui.screens.MainScreen
 import com.phonebridge.gateway.ui.theme.PhoneBridgeTheme
+import com.phonebridge.gateway.util.BatteryOptimizationHelper
 import com.phonebridge.gateway.viewmodel.PhoneBridgeViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -163,31 +164,29 @@ class MainActivity : ComponentActivity() {
     }
     
     /**
-     * بررسی و درخواست معافیت از بهینه‌سازی باتری
+     * بررسی و درخواست معافیت از بهینه‌سازی باتری با UI بهتر
      */
     private fun checkBatteryOptimization() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-            val packageName = packageName
-            
-            if (powerManager?.isIgnoringBatteryOptimizations(packageName) == false) {
-                // نمایش دیالوگ درخواست معافیت
-                AlertDialog.Builder(this)
-                    .setTitle("درخواست معافیت از بهینه‌سازی باتری")
-                    .setMessage("برای اطمینان از عملکرد مداوم PhoneBridge در پس‌زمینه، لطفاً این برنامه را از بهینه‌سازی باتری معاف کنید.")
-                    .setPositiveButton("تنظیمات") { _, _ ->
-                        try {
-                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = Uri.parse("package:$packageName")
-                            }
-                            startActivity(intent)
-                        } catch (e: Exception) {
-                            android.util.Log.e("MainActivity", "Error opening battery optimization settings", e)
-                        }
-                    }
-                    .setNegativeButton("بعداً", null)
-                    .show()
-            }
+        val dozeStatus = BatteryOptimizationHelper.getDozeStatus(this)
+        
+        // فقط در صورتی که OPTIMIZED باشد، دیالوگ نشان بده
+        if (dozeStatus == BatteryOptimizationHelper.DozeStatus.OPTIMIZED) {
+            AlertDialog.Builder(this)
+                .setTitle("⚠️ هشدار مهم")
+                .setMessage(
+                    "PhoneBridge در حال حاضر تحت بهینه‌سازی باتری است.\n\n" +
+                    "این ممکن است باعث شود:\n" +
+                    "• تماس‌ها و پیامک‌ها با تاخیر دریافت شوند\n" +
+                    "• اتصال بلوتوث در پس‌زمینه قطع شود\n" +
+                    "• عملکرد برنامه ناپایدار شود\n\n" +
+                    "برای عملکرد بهینه، لطفاً این برنامه را از بهینه‌سازی باتری معاف کنید."
+                )
+                .setPositiveButton("باز کردن تنظیمات") { _, _ ->
+                    BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(this)
+                }
+                .setNegativeButton("فعلاً نه", null)
+                .setCancelable(false)
+                .show()
         }
     }
 }

@@ -45,6 +45,23 @@ class BLEPeripheralServer(private val context: Context) {
     // نگهداری لیست امن تمامی آیفون‌های متصل شده
     private val connectedDevices = Collections.synchronizedSet(mutableSetOf<BluetoothDevice>())
     
+    // ردیابی دلیل disconnect برای هر دستگاه
+    private data class DisconnectContext(
+        val device: BluetoothDevice,
+        val reason: DisconnectReason,
+        val timestamp: Long
+    )
+    
+    enum class DisconnectReason {
+        USER_INITIATED,       // کاربر disconnect کرد
+        OUT_OF_RANGE,        // دستگاه از محدوده خارج شد
+        CONNECTION_TIMEOUT,   // Timeout
+        PERIPHERAL_ERROR,     // خطای سمت peripheral
+        UNKNOWN              // نامشخص
+    }
+    
+    private val recentDisconnects = mutableMapOf<String, DisconnectContext>()
+    
     // مدیریت کانال L2CAP برای انتقال صوت
     private var l2capChannelManager: com.phonebridge.gateway.audio.L2CAPChannelManager? = null
     private var audioBridgeManager: com.phonebridge.gateway.audio.AudioBridgeManager? = null
@@ -158,6 +175,10 @@ class BLEPeripheralServer(private val context: Context) {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
                         Log.i(TAG, "✅ iPhone connected: ${device.address}")
                         connectedDevices.add(device)
+                        
+                        // پاک کردن recent disconnect context
+                        recentDisconnects.remove(device.address)
+                        
                         sendDeviceStatus(device)
                         
                         // به‌روزرسانی ViewModel
@@ -170,7 +191,18 @@ class BLEPeripheralServer(private val context: Context) {
                             }
                         }
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                        Log.i(TAG, "❌ iPhone disconnected: ${device.address}")
+                        // تشخیص دلیل disconnect
+                        val disconnectReason = classifyDisconnectReason(status)
+                        
+                        Log.i(TAG, "❌ iPhone disconnected: ${device.address} (status=$status, reason=$disconnectReason)")
+                        
+                        // ذخیره context برای reconnection
+                        recentDisconnects[device.address] = DisconnectContext(
+                            device = device,
+                            reason = disconnectReason,
+                            timestamp = System.currentTimeMillis()
+                        )
+                        
                         connectedDevices.remove(device)
                         
                         // به‌روزرسانی ViewModel
@@ -186,7 +218,7 @@ class BLEPeripheralServer(private val context: Context) {
                         }
                         
                         // شروع مجدد advertising اگر هیچ دستگاهی متصل نیست
-                        restartAdvertising()
+                        restartAdvertising(disconnectReason)
                     }
                 }
             }
@@ -354,12 +386,20 @@ class BLEPeripheralServer(private val context: Context) {
     }
     
     /**
-     * شروع مجدد advertising بعد از disconnect
+     * شروع مجدد advertising بعد از disconnect با context-aware strategy
      */
-    private fun restartAdvertising() {
+    private fun restartAdvertising(disconnectReason: DisconnectReason = DisconnectReason.UNKNOWN) {
+        // تاخیر متناسب با دلیل disconnect
+        val delay = when (disconnectReason) {
+            DisconnectReason.OUT_OF_RANGE -> 500L   // سریع‌تر restart کن
+            DisconnectReason.CONNECTION_TIMEOUT -> 1000L
+            DisconnectReason.PERIPHERAL_ERROR -> 2000L  // کمی بیشتر صبر کن
+            else -> 1000L
+        }
+        
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             if (connectedDevices.isEmpty() && bluetoothAdapter?.isEnabled == true) {
-                Log.i(TAG, "🔄 Restarting BLE advertising (no devices connected)...")
+                Log.i(TAG, "🔄 Restarting BLE advertising (reason: $disconnectReason, delay: ${delay}ms)...")
                 
                 // توقف advertising قبلی
                 currentAdvertiseCallback?.let { callback ->
@@ -370,7 +410,22 @@ class BLEPeripheralServer(private val context: Context) {
                 Thread.sleep(100)
                 startAdvertising()
             }
-        }, 1000)
+        }, delay)
+    }
+    
+    /**
+     * تشخیص دلیل disconnect بر اساس status code
+     */
+    private fun classifyDisconnectReason(status: Int): DisconnectReason {
+        return when (status) {
+            BluetoothGatt.GATT_SUCCESS -> DisconnectReason.USER_INITIATED // 0: Normal disconnect
+            8 -> DisconnectReason.CONNECTION_TIMEOUT  // Connection timeout
+            19 -> DisconnectReason.OUT_OF_RANGE      // Connection terminated by peer (usually out of range)
+            22 -> DisconnectReason.OUT_OF_RANGE      // LMP response timeout (device went away)
+            62 -> DisconnectReason.CONNECTION_TIMEOUT // GATT connection timeout
+            133 -> DisconnectReason.PERIPHERAL_ERROR // Generic GATT error
+            else -> DisconnectReason.UNKNOWN
+        }
     }
 
     /**
