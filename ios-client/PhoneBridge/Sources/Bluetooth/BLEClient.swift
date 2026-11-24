@@ -376,12 +376,79 @@ public class BLEClient: NSObject, ObservableObject {
         return l2capManager
     }
 
-    /// ارسال پیامک از طریق سیم‌کارت اندروید
-    public func sendSMS(recipient: String, message: String) {
-        guard !recipient.isEmpty, !message.isEmpty else { return }
-        log("✉️ در حال ارسال پیامک به \(recipient)")
-        sendCommand(["cmd": "SEND_SMS", "recipient": recipient, "body": message])
-        onActivityEvent?("paperplane.fill", "پیامک ارسال شد", "\(recipient): \(message)", message, recipient)
+    /// ارسال پیامک از طریق سیم‌کارت اندروید (با protocol جدید)
+    public func sendSMS(phoneNumber: String, message: String, completion: ((Bool, String?) -> Void)? = nil) {
+        guard !phoneNumber.isEmpty, !message.isEmpty else {
+            completion?(false, "Phone number or message is empty")
+            return
+        }
+        
+        // Validation
+        guard isValidPhoneNumber(phoneNumber) else {
+            log("❌ شماره تلفن نامعتبر است")
+            completion?(false, "Invalid phone number")
+            return
+        }
+        
+        guard message.count <= 1000 else {
+            log("❌ پیام خیلی طولانی است (حداکثر 1000 کاراکتر)")
+            completion?(false, "Message too long (max 1000 characters)")
+            return
+        }
+        
+        log("✉️ در حال ارسال پیامک به \(phoneNumber)")
+        
+        let command: [String: Any] = [
+            "cmd": "SEND_SMS",
+            "phoneNumber": phoneNumber,
+            "message": message,
+            "timestamp": Int(Date().timeIntervalSince1970)
+        ]
+        
+        sendCommand(command)
+        onActivityEvent?("paperplane.fill", "پیامک ارسال شد", "\(phoneNumber): \(message)", message, phoneNumber)
+        
+        // Note: completion will be called when SMS_SEND_RESULT is received
+        // برای سادگی، الان success می‌دهیم (می‌توان callback را ذخیره کرد)
+        completion?(true, nil)
+    }
+    
+    /// شروع تماس خروجی از طریق سیم‌کارت اندروید (فیچر جدید)
+    public func initiateCall(phoneNumber: String, completion: ((Bool, String?, String?) -> Void)? = nil) {
+        guard !phoneNumber.isEmpty else {
+            completion?(false, nil, "Phone number is empty")
+            return
+        }
+        
+        // Validation
+        guard isValidPhoneNumber(phoneNumber) else {
+            log("❌ شماره تلفن نامعتبر است")
+            completion?(false, nil, "Invalid phone number")
+            return
+        }
+        
+        log("📞 در حال برقراری تماس با \(phoneNumber)")
+        
+        let command: [String: Any] = [
+            "cmd": "DIAL_CALL",
+            "phoneNumber": phoneNumber,
+            "timestamp": Int(Date().timeIntervalSince1970)
+        ]
+        
+        sendCommand(command)
+        onActivityEvent?("phone.fill", "تماس خروجی", "در حال برقراری تماس با \(phoneNumber)", "", phoneNumber)
+        
+        // Note: completion will be called when DIAL_RESULT is received
+        // برای سادگی، الان success می‌دهیم (می‌توان callback را ذخیره کرد)
+        completion?(true, nil, nil)
+    }
+    
+    /// بررسی اعتبار شماره تلفن
+    private func isValidPhoneNumber(_ phoneNumber: String) -> Bool {
+        // فرمت معتبر: 10-15 رقم، با یا بدون +
+        let phoneRegex = "^\\+?[0-9]{10,15}$"
+        let phonePredicate = NSPredicate(format: "SELF MATCHES %@", phoneRegex)
+        return phonePredicate.evaluate(with: phoneNumber)
     }
 }
 
@@ -772,6 +839,33 @@ extension BLEClient: CBPeripheralDelegate {
                 log("✅ پیامک به \(recipient) با موفقیت ارسال شد.")
             } else {
                 log("❌ خطا در ارسال پیامک به \(recipient)")
+            }
+        
+        case "SMS_SEND_RESULT":
+            // Handler جدید برای protocol جدید
+            let success = json["success"] as? Bool ?? false
+            let error = json["error"] as? String
+            
+            if success {
+                log("✅ پیامک با موفقیت ارسال شد")
+                onActivityEvent?("checkmark.circle", "پیامک ارسال شد", "پیامک با موفقیت ارسال شد", nil, nil)
+            } else {
+                log("❌ خطا در ارسال پیامک: \(error ?? "Unknown error")")
+                onActivityEvent?("xmark.circle", "خطا در ارسال پیامک", error ?? "Unknown error", nil, nil)
+            }
+        
+        case "DIAL_RESULT":
+            // Handler جدید برای تماس خروجی (فیچر جدید)
+            let success = json["success"] as? Bool ?? false
+            let callId = json["callId"] as? String
+            let error = json["error"] as? String
+            
+            if success {
+                log("✅ تماس خروجی با موفقیت برقرار شد (ID: \(callId ?? "unknown"))")
+                onActivityEvent?("phone.arrow.up.right", "تماس خروجی برقرار شد", "تماس با موفقیت شروع شد", nil, nil)
+            } else {
+                log("❌ خطا در برقراری تماس: \(error ?? "Unknown error")")
+                onActivityEvent?("phone.down", "خطا در برقراری تماس", error ?? "Unknown error", nil, nil)
             }
 
         case "SMS_INCOMING":

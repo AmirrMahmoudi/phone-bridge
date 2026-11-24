@@ -16,6 +16,8 @@ import android.telecom.TelecomManager
 import android.telephony.TelephonyManager
 import android.util.Log
 import com.phonebridge.gateway.service.PhoneBridgeCallService
+import com.phonebridge.gateway.sms.SmsSender
+import com.phonebridge.gateway.dialer.CallInitiator
 import org.json.JSONObject
 import java.util.Collections
 import java.util.UUID
@@ -70,6 +72,12 @@ class BLEPeripheralServer(private val context: Context) {
     
     // مدیر تاریخچه تماس
     private var callHistoryManager: com.phonebridge.gateway.data.CallHistoryManager? = null
+    
+    // مدیر ارسال SMS (فیچر جدید)
+    private val smsSender: SmsSender by lazy { SmsSender(context) }
+    
+    // مدیر تماس خروجی (فیچر جدید)
+    private val callInitiator: CallInitiator by lazy { CallInitiator(context) }
     
     // Advertising callback برای restart
     private var currentAdvertiseCallback: AdvertiseCallback? = null
@@ -504,9 +512,13 @@ class BLEPeripheralServer(private val context: Context) {
                 audioBridgeManager?.setMute(muted)
             }
             "SEND_SMS" -> {
-                val recipient = json.optString("recipient")
-                val message = json.optString("body")
-                sendSmsMessage(recipient, message)
+                val phoneNumber = json.optString("phoneNumber")
+                val message = json.optString("message")
+                sendSmsMessage(phoneNumber, message)
+            }
+            "DIAL_CALL" -> {
+                val phoneNumber = json.optString("phoneNumber")
+                dialCall(phoneNumber)
             }
             "REQUEST_CALL_HISTORY" -> {
                 sendCallHistory()
@@ -579,39 +591,59 @@ class BLEPeripheralServer(private val context: Context) {
         }
     }
 
-    private fun sendSmsMessage(recipient: String, message: String) {
-        if (recipient.isBlank() || message.isBlank()) return
-        Log.i(TAG, "Sending SMS via Android SIM to: $recipient")
-        try {
-            val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                context.getSystemService(android.telephony.SmsManager::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                android.telephony.SmsManager.getDefault()
-            }
-            val parts = smsManager.divideMessage(message)
-            if (parts.size > 1) {
-                smsManager.sendMultipartTextMessage(recipient, null, parts, null, null)
-            } else {
-                smsManager.sendTextMessage(recipient, null, message, null, null)
-            }
-            Log.i(TAG, "SMS sent successfully to $recipient")
+    /**
+     * ارسال SMS با استفاده از SmsSender (با validation و rate limiting)
+     * این تابع refactor شده است و از کلاس جدید SmsSender استفاده می‌کند
+     */
+    private fun sendSmsMessage(phoneNumber: String, message: String) {
+        Log.i(TAG, "Sending SMS via SmsSender to: $phoneNumber")
+        
+        smsSender.sendSms(phoneNumber, message) { success, error ->
             val payload = JSONObject().apply {
-                put("type", "SMS_SENT_STATUS")
-                put("recipient", recipient)
-                put("status", "SUCCESS")
+                put("type", "SMS_SEND_RESULT")
+                put("success", success)
+                if (success) {
+                    put("messageId", "sms_${System.currentTimeMillis()}")
+                } else {
+                    put("error", error ?: "Unknown error")
+                }
                 put("timestamp", System.currentTimeMillis() / 1000)
             }
             sendNotification(payload.toString())
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed sending SMS to $recipient", e)
+            
+            if (success) {
+                Log.i(TAG, "✅ SMS sent successfully to $phoneNumber")
+            } else {
+                Log.e(TAG, "❌ SMS send failed: $error")
+            }
+        }
+    }
+    
+    /**
+     * شروع تماس خروجی با استفاده از CallInitiator (با validation و rate limiting)
+     * این تابع کاملاً جدید است (فیچر جدید)
+     */
+    private fun dialCall(phoneNumber: String) {
+        Log.i(TAG, "Initiating outgoing call via CallInitiator to: $phoneNumber")
+        
+        callInitiator.initiateCall(phoneNumber) { success, callId, error ->
             val payload = JSONObject().apply {
-                put("type", "SMS_SENT_STATUS")
-                put("recipient", recipient)
-                put("status", "FAILED")
-                put("error", e.localizedMessage ?: "Unknown error")
+                put("type", "DIAL_RESULT")
+                put("success", success)
+                if (success) {
+                    put("callId", callId)
+                } else {
+                    put("error", error ?: "Unknown error")
+                }
+                put("timestamp", System.currentTimeMillis() / 1000)
             }
             sendNotification(payload.toString())
+            
+            if (success) {
+                Log.i(TAG, "✅ Call initiated successfully to $phoneNumber (ID: $callId)")
+            } else {
+                Log.e(TAG, "❌ Call initiation failed: $error")
+            }
         }
     }
 
