@@ -66,9 +66,22 @@ public class BLEClient: NSObject, ObservableObject {
         }
     }
 
+    override init() {
+        super.init()
+        setupBluetooth()
+        startHeartbeatMonitor()
+    }
+
     public func setupBluetooth() {
         guard centralManager == nil else { return }
-        centralManager = CBCentralManager(delegate: self, queue: nil)
+        centralManager = CBCentralManager(
+            delegate: self,
+            queue: nil,
+            options: [
+                CBCentralManagerOptionRestoreIdentifierKey: "PhoneBridgeCentralManager",
+                CBCentralManagerOptionShowPowerAlertKey: true
+            ]
+        )
     }
 
     public func startScanning() {
@@ -167,6 +180,21 @@ extension BLEClient: CBCentralManagerDelegate {
             isConnected = false
         default:
             break
+        }
+    }
+
+    public func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
+        log("🔄 [BLE] Restoring Bluetooth state in background...")
+        if let restoredPeripherals = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
+           let p = restoredPeripherals.first {
+            self.peripheral = p
+            self.peripheral?.delegate = self
+            self.deviceName = p.name ?? "Samsung Gateway"
+            self.isConnected = (p.state == .connected)
+            log("✅ [BLE] Restored connection to: \(self.deviceName)")
+            if p.state == .connected {
+                p.discoverServices([BLEClient.serviceUUID])
+            }
         }
     }
 

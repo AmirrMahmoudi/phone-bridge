@@ -27,6 +27,7 @@
     <!-- پایداری در پس‌زمینه -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -80,7 +81,7 @@
         <!-- سرویس Foreground برای حفظ BLE در پس‌زمینه -->
         <service
             android:name=".service.PhoneBridgeForegroundService"
-            android:foregroundServiceType="phoneCall"
+            android:foregroundServiceType="phoneCall|connectedDevice"
             android:exported="false" />
 
     </application>

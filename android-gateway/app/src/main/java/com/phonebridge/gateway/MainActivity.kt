@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
     private fun checkAndRequestPermissions() {
         val permissions = mutableListOf(
             Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_CALL_LOG,
             Manifest.permission.ANSWER_PHONE_CALLS,
             Manifest.permission.CALL_PHONE,
             Manifest.permission.RECEIVE_SMS,
@@ -107,22 +108,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startServer() {
-        if (bleServer == null) {
-            bleServer = BLEPeripheralServer(this)
-            bleServer?.startServer()
-            viewModel.setBleActive(true)
-            
-            // شروع سرویس Foreground
-            val serviceIntent = Intent(this, PhoneBridgeForegroundService::class.java).apply {
-                action = PhoneBridgeForegroundService.ACTION_START
-                putExtra(PhoneBridgeForegroundService.EXTRA_MESSAGE, "سرور BLE فعال است")
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
+        val serviceIntent = Intent(this, PhoneBridgeForegroundService::class.java).apply {
+            action = PhoneBridgeForegroundService.ACTION_START
+            putExtra(PhoneBridgeForegroundService.EXTRA_MESSAGE, "سرور PhoneBridge فعال است")
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+        viewModel.setBleActive(true)
     }
 
     /**

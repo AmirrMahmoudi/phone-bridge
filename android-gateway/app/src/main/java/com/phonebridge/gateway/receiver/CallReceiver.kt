@@ -41,6 +41,11 @@ class CallReceiver : BroadcastReceiver() {
                         incomingNumber = if (!number.isNullOrEmpty()) number else "ناشناس"
                         Log.i(TAG, "Incoming GSM call ringing from: $incomingNumber")
 
+                        // ارسال شماره به سرویس پس‌زمینه
+                        if (!number.isNullOrEmpty()) {
+                            com.phonebridge.gateway.service.PhoneBridgeForegroundService.instance?.handleIncomingNumber(number)
+                        }
+
                         val payload = JSONObject().apply {
                             put("type", "CALL_INCOMING")
                             put("callId", UUID.randomUUID().toString())

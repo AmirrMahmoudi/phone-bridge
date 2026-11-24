@@ -265,7 +265,7 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "PhoneBridge requires Bluetooth to connect to your secondary Android phone to receive calls and SMS.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "PhoneBridge requires Bluetooth to connect to your secondary Android phone.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "PhoneBridge requires microphone access for call audio.";
-				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central audio";
+				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central audio voip";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -352,7 +352,7 @@
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "PhoneBridge requires Bluetooth to connect to your secondary Android phone to receive calls and SMS.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "PhoneBridge requires Bluetooth to connect to your secondary Android phone.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "PhoneBridge requires microphone access for call audio.";
-				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central audio";
+				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central audio voip";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (

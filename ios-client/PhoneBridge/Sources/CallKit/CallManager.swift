@@ -18,6 +18,7 @@ public class CallManager: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        setupCallKit()
     }
 
     /// راه‌اندازی ایمن CallKit بعد از لود شدن کامل رابط کاربری
