@@ -13,6 +13,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.phonebridge.gateway.MainActivity
 import com.phonebridge.gateway.bluetooth.BLEPeripheralServer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.UUID
 
@@ -33,6 +38,8 @@ class PhoneBridgeForegroundService : Service() {
         var bleServer: BLEPeripheralServer? = null
     }
     
+    private val serviceJob = SupervisorJob()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
     private var wakeLock: PowerManager.WakeLock? = null
     private var lastCallState = TelephonyManager.CALL_STATE_IDLE
     private var incomingNumber: String? = null
@@ -73,6 +80,7 @@ class PhoneBridgeForegroundService : Service() {
     
     override fun onDestroy() {
         super.onDestroy()
+        serviceJob.cancel()
         releaseWakeLock()
         instance = null
     }
