@@ -1,0 +1,409 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		19D70F1F427F3A1759F30F52 /* BLEClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF91A2083287FEB241C2053 /* BLEClient.swift */; };
+		5D45CBE52E11475A11DF1084 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */; };
+		7A2D787597391A9497BEBB60 /* PhoneBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FC69B04913D8A8E27C2995 /* PhoneBridgeApp.swift */; };
+		90F846ABB89AB2773CEDED31 /* L2CAPChannelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C236317586D438952965C4 /* L2CAPChannelManager.swift */; };
+		AC07A2C39479A67D238C5EC9 /* OpusKit in Frameworks */ = {isa = PBXBuildFile; productRef = A589D1B90A1BD74A136085EB /* OpusKit */; };
+		EED5547C928A8BDB0D600252 /* AudioStreamManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B87EA7DA61CABF2D89D17CAE /* AudioStreamManager.swift */; };
+		FA964D3F115A01A8F633AF94 /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78535C7304AE0C05F922B3CD /* CallManager.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0EF91A2083287FEB241C2053 /* BLEClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEClient.swift; sourceTree = "<group>"; };
+		36FC69B04913D8A8E27C2995 /* PhoneBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneBridgeApp.swift; sourceTree = "<group>"; };
+		61C236317586D438952965C4 /* L2CAPChannelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L2CAPChannelManager.swift; sourceTree = "<group>"; };
+		6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		78535C7304AE0C05F922B3CD /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
+		B87EA7DA61CABF2D89D17CAE /* AudioStreamManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioStreamManager.swift; sourceTree = "<group>"; };
+		F34E9709AD4EB20C8676DBEA /* PhoneBridge.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		02A1CB58E3D7541E875FEE90 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC07A2C39479A67D238C5EC9 /* OpusKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		45CF36901949355B8E1332A6 = {
+			isa = PBXGroup;
+			children = (
+				6E03F0864079B42E72B59BBD /* Sources */,
+				72C03D1B9155183D87FC6B17 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4D50E81D73D1FDE241F58EA6 /* CallKit */ = {
+			isa = PBXGroup;
+			children = (
+				78535C7304AE0C05F922B3CD /* CallManager.swift */,
+			);
+			path = CallKit;
+			sourceTree = "<group>";
+		};
+		6E03F0864079B42E72B59BBD /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				AEA447BF19FA663E7B632672 /* App */,
+				FDC917F02AABE9C82B776E94 /* Audio */,
+				C63566F704A493519AF2D59A /* Bluetooth */,
+				4D50E81D73D1FDE241F58EA6 /* CallKit */,
+				C2FF42630E7A128277C884E2 /* Views */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		72C03D1B9155183D87FC6B17 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F34E9709AD4EB20C8676DBEA /* PhoneBridge.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AEA447BF19FA663E7B632672 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				36FC69B04913D8A8E27C2995 /* PhoneBridgeApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		C2FF42630E7A128277C884E2 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		C63566F704A493519AF2D59A /* Bluetooth */ = {
+			isa = PBXGroup;
+			children = (
+				0EF91A2083287FEB241C2053 /* BLEClient.swift */,
+			);
+			path = Bluetooth;
+			sourceTree = "<group>";
+		};
+		FDC917F02AABE9C82B776E94 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				B87EA7DA61CABF2D89D17CAE /* AudioStreamManager.swift */,
+				61C236317586D438952965C4 /* L2CAPChannelManager.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		2049E65E03EF4596705E77E0 /* PhoneBridge */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C4E08AEC4E0C19CF8F1B3C42 /* Build configuration list for PBXNativeTarget "PhoneBridge" */;
+			buildPhases = (
+				3FC06237C7BF8FD03ED76354 /* Sources */,
+				02A1CB58E3D7541E875FEE90 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PhoneBridge;
+			packageProductDependencies = (
+				A589D1B90A1BD74A136085EB /* OpusKit */,
+			);
+			productName = PhoneBridge;
+			productReference = F34E9709AD4EB20C8676DBEA /* PhoneBridge.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA4E3CF2F40C71A128D24277 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					2049E65E03EF4596705E77E0 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 4A73C3C754D40357F6B2AFE5 /* Build configuration list for PBXProject "PhoneBridge" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 45CF36901949355B8E1332A6;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				974E43A7C56BC7DECC42963D /* XCRemoteSwiftPackageReference "OpusKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 72C03D1B9155183D87FC6B17 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				2049E65E03EF4596705E77E0 /* PhoneBridge */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3FC06237C7BF8FD03ED76354 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EED5547C928A8BDB0D600252 /* AudioStreamManager.swift in Sources */,
+				19D70F1F427F3A1759F30F52 /* BLEClient.swift in Sources */,
+				FA964D3F115A01A8F633AF94 /* CallManager.swift in Sources */,
+				5D45CBE52E11475A11DF1084 /* ContentView.swift in Sources */,
+				90F846ABB89AB2773CEDED31 /* L2CAPChannelManager.swift in Sources */,
+				7A2D787597391A9497BEBB60 /* PhoneBridgeApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		02A18A71D1F7BA1CFF16B60D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5E7D171568BD974BEDB5B934 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_BITCODE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = PhoneBridge;
+				INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "PhoneBridge requires Bluetooth to connect to your secondary Android phone to receive calls and SMS.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "PhoneBridge requires Bluetooth to connect to your secondary Android phone.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "PhoneBridge requires microphone access for call audio.";
+				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central audio";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.personal.phonebridge;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D3F7A62DAA4E6B951AFB4238 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		F0FD38C6F8F56579292CBECE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_BITCODE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = PhoneBridge;
+				INFOPLIST_KEY_LSRequiresIPhoneOS = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "PhoneBridge requires Bluetooth to connect to your secondary Android phone to receive calls and SMS.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "PhoneBridge requires Bluetooth to connect to your secondary Android phone.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "PhoneBridge requires microphone access for call audio.";
+				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central audio";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.personal.phonebridge;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4A73C3C754D40357F6B2AFE5 /* Build configuration list for PBXProject "PhoneBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				02A18A71D1F7BA1CFF16B60D /* Debug */,
+				D3F7A62DAA4E6B951AFB4238 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C4E08AEC4E0C19CF8F1B3C42 /* Build configuration list for PBXNativeTarget "PhoneBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F0FD38C6F8F56579292CBECE /* Debug */,
+				5E7D171568BD974BEDB5B934 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		974E43A7C56BC7DECC42963D /* XCRemoteSwiftPackageReference "OpusKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/chrisballinger/OpusKit.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A589D1B90A1BD74A136085EB /* OpusKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 974E43A7C56BC7DECC42963D /* XCRemoteSwiftPackageReference "OpusKit" */;
+			productName = OpusKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AA4E3CF2F40C71A128D24277 /* Project object */;
+}

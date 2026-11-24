@@ -65,23 +65,9 @@ public class CallManager: NSObject, ObservableObject {
         }
     }
 
-    /// برقراری تماس خروجی از آیفون با رابط کاربری سیستمی CallKit
+    /// @deprecated متد دیگر استفاده نمی‌شود - تماس‌های خروجی فقط از طریق اپ Phone بومی آیفون
     public func startOutgoingCall(handle: String) {
-        let uuid = UUID()
-        self.activeCallUUID = uuid
-        self.callerName = handle
-
-        let handleObj = CXHandle(type: .phoneNumber, value: handle)
-        let startCallAction = CXStartCallAction(call: uuid, handle: handleObj)
-        let transaction = CXTransaction(action: startCallAction)
-
-        callController.request(transaction) { error in
-            if let error = error {
-                print("[CallKit] Error starting outgoing call: \(error.localizedDescription)")
-            } else {
-                print("[CallKit] Outgoing call started successfully: \(handle)")
-            }
-        }
+        print("[CallKit] Warning: startOutgoingCall() is deprecated and unused. Use native iOS Phone app for outgoing calls.")
     }
 
     /// پایان دادن به تماس در لایه CallKit

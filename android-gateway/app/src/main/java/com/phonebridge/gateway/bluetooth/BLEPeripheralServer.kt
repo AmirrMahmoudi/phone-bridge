@@ -304,10 +304,6 @@ class BLEPeripheralServer(private val context: Context) {
             "HANGUP_CALL" -> {
                 hangupCall()
             }
-            "DIAL_CALL" -> {
-                val number = json.optString("number")
-                dialOutgoingCall(number)
-            }
         }
     }
 
@@ -350,22 +346,7 @@ class BLEPeripheralServer(private val context: Context) {
         }
     }
 
-    private fun dialOutgoingCall(phoneNumber: String) {
-        val cleanNumber = phoneNumber.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
-        if (cleanNumber.isEmpty()) return
 
-        Log.i(TAG, "Dialing outgoing call to: $cleanNumber")
-        val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$cleanNumber")).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-
-        if (context.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
-            context.startActivity(intent)
-            Log.i(TAG, "ACTION_CALL initiated for $cleanNumber")
-        } else {
-            Log.e(TAG, "Cannot dial: CALL_PHONE permission not granted.")
-        }
-    }
 
     /**
      * شروع استریم صوت از طریق کانال L2CAP

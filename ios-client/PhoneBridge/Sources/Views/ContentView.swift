@@ -1,268 +1,437 @@
 import SwiftUI
 
+/// مدل داده برای هر رویداد در لیست فعالیت‌ها
+struct ActivityItem: Identifiable {
+    let id = UUID()
+    let icon: String
+    let title: String
+    let subtitle: String
+    let timestamp: Date
+}
+
+/// مدیریت لیست رویدادهای اپلیکیشن (تماس‌ها، پیامک‌ها، تغییرات اتصال)
+class ActivityLog: ObservableObject {
+    @Published var items: [ActivityItem] = []
+    
+    /// افزودن رویداد جدید با محدودیت 50 آیتم
+    func add(icon: String, title: String, subtitle: String = "") {
+        let newItem = ActivityItem(icon: icon, title: title, subtitle: subtitle, timestamp: Date())
+        DispatchQueue.main.async {
+            self.items.insert(newItem, at: 0)
+            if self.items.count > 50 {
+                self.items = Array(self.items.prefix(50))
+            }
+        }
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject var bleClient: BLEClient
     @EnvironmentObject var callManager: CallManager
-
-    @State private var dialedNumber: String = ""
-    @State private var selectedTab: Int = 0
+    @StateObject private var activityLog = ActivityLog()
+    @State private var showSettings = false
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // تب ۱: صفحه شماره‌گیر حرفه‌ای (Keypad)
-            NavigationStack {
-                VStack(spacing: 12) {
-                    // نوار وضعیت فشرده اتصال در بالای صفحه
-                    statusBarHeader
-
-                    Spacer()
-
-                    // نمایشگر شماره گرفته شده
-                    HStack {
-                        Spacer()
-                        Text(dialedNumber.isEmpty ? " " : dialedNumber)
-                            .font(.system(size: 38, weight: .regular, design: .rounded))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                            .padding(.horizontal)
-                        
-                        if !dialedNumber.isEmpty {
-                            Button(action: {
-                                if !dialedNumber.isEmpty {
-                                    dialedNumber.removeLast()
-                                }
-                            }) {
-                                Image(systemName: "delete.left.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.trailing, 24)
-                        } else {
-                            Spacer().frame(width: 44)
-                        }
-                    }
-                    .frame(height: 60)
-
-                    Spacer()
-
-                    // کلیدهای شماره‌گیر (Keypad Grid)
-                    VStack(spacing: 16) {
-                        HStack(spacing: 28) {
-                            keypadButton("1", subtitle: "")
-                            keypadButton("2", subtitle: "A B C")
-                            keypadButton("3", subtitle: "D E F")
-                        }
-                        HStack(spacing: 28) {
-                            keypadButton("4", subtitle: "G H I")
-                            keypadButton("5", subtitle: "J K L")
-                            keypadButton("6", subtitle: "M N O")
-                        }
-                        HStack(spacing: 28) {
-                            keypadButton("7", subtitle: "P Q R S")
-                            keypadButton("8", subtitle: "T U V")
-                            keypadButton("9", subtitle: "W X Y Z")
-                        }
-                        HStack(spacing: 28) {
-                            keypadButton("*", subtitle: "")
-                            keypadButton("0", subtitle: "+")
-                            keypadButton("#", subtitle: "")
-                        }
-
-                        // دکمه سبز بزرگ تماس
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                makeCall()
-                            }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(bleClient.isConnected ? Color.green : Color.gray)
-                                        .frame(width: 76, height: 76)
-                                        .shadow(color: (bleClient.isConnected ? Color.green : Color.clear).opacity(0.4), radius: 8, x: 0, y: 4)
-
-                                    Image(systemName: "phone.fill")
-                                        .font(.system(size: 32))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .disabled(!bleClient.isConnected || dialedNumber.isEmpty)
-                            Spacer()
-                        }
-                        .padding(.top, 8)
-                    }
-
-                    Spacer(minLength: 20)
-                }
-                .navigationTitle("PhoneBridge")
-                .navigationBarTitleDisplayMode(.inline)
-            }
-            .tabItem {
-                Label("شماره‌گیر", systemImage: "circle.grid.3x3.fill")
-            }
-            .tag(0)
-
-            // تب ۲: لاگ‌ها و وضعیت اتصال (Activity & Status)
-            NavigationStack {
-                VStack(spacing: 16) {
-                    // کارت بزرگ وضعیت اتصال
-                    connectionCard
-
-                    // لیست زنده رویدادها
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("گزارش تماس‌ها و پیامک‌ها")
-                            .font(.headline)
-                            .padding(.horizontal, 4)
-
-                        if bleClient.logs.isEmpty {
-                            VStack(spacing: 12) {
-                                Spacer()
-                                Image(systemName: "clock")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.secondary)
-                                Text("رویدادی ثبت نشده")
-                                    .font(.headline)
-                                Text("تماس‌ها و پیامک‌های دریافتی اینجا ثبت می‌شوند.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            List(bleClient.logs, id: \.self) { log in
-                                Text(log)
-                                    .font(.system(size: 13, design: .monospaced))
-                                    .foregroundColor(.primary)
-                            }
-                            .listStyle(.insetGrouped)
-                        }
-                    }
-
-                    Spacer()
-                }
-                .padding()
-                .navigationTitle("گزارش رویدادها")
-            }
-            .tabItem {
-                Label("رویدادها", systemImage: "list.bullet.rectangle.portrait")
-            }
-            .tag(1)
-        }
-    }
-
-    // MARK: - دکمه‌های شماره‌گیر
-    private func keypadButton(_ title: String, subtitle: String) -> some View {
-        Button(action: {
-            dialedNumber.append(title)
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        }) {
+        NavigationStack {
             VStack(spacing: 0) {
-                Text(title)
-                    .font(.system(size: 32, weight: .regular))
-                    .foregroundColor(.primary)
-                if !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
+                // کارت وضعیت اتصال در بالای صفحه
+                ConnectionStatusCard()
+                    .padding()
+                
+                // نمایش وضعیت تماس فعال در صورت وجود
+                if callManager.activeCallUUID != nil {
+                    ActiveCallIndicator()
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                 }
+                
+                // لیست رویدادها
+                ActivityFeed(activityLog: activityLog)
             }
-            .frame(width: 76, height: 76)
-            .background(Circle().fill(Color(uiColor: .secondarySystemFill)))
-        }
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.6).onEnded { _ in
-                if title == "0" {
-                    if !dialedNumber.isEmpty && dialedNumber.last == "0" {
-                        dialedNumber.removeLast()
+            .navigationTitle("PhoneBridge")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showSettings = true }) {
+                        Image(systemName: "gearshape")
                     }
-                    dialedNumber.append("+")
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 }
             }
-        )
-    }
-
-    // MARK: - نوار وضعیت فشرده بالای صفحه شماره‌گیر
-    private var statusBarHeader: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(bleClient.isConnected ? Color.green : Color.red)
-                .frame(width: 10, height: 10)
-
-            Text(bleClient.isConnected ? bleClient.deviceName : "در حال جستجوی سامسونگ...")
-                .font(.footnote)
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-
-            Spacer()
-
-            if bleClient.isConnected {
-                HStack(spacing: 6) {
-                    Image(systemName: "simcard")
-                    Text(bleClient.simCarrier)
-                }
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-                HStack(spacing: 4) {
-                    Image(systemName: "battery.75")
-                    Text("\(bleClient.batteryLevel)%")
-                }
-                .font(.caption)
-                .foregroundColor(.secondary)
+            .sheet(isPresented: $showSettings) {
+                SettingsSheet()
+            }
+            .onAppear {
+                // ثبت رویدادها در ActivityLog
+                setupActivityLogging()
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Capsule().fill(Color(uiColor: .tertiarySystemFill)))
-        .padding(.horizontal)
     }
+    
+    /// راه‌اندازی لاگینگ خودکار رویدادها از BLEClient
+    private func setupActivityLogging() {
+        bleClient.onActivityEvent = { icon, title, subtitle in
+            activityLog.add(icon: icon, title: title, subtitle: subtitle)
+        }
+    }
+}
 
-    // MARK: - کارت بزرگ وضعیت اتصال
-    private var connectionCard: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Image(systemName: bleClient.isConnected ? "antenna.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash")
-                    .font(.system(size: 36))
-                    .foregroundColor(bleClient.isConnected ? .green : .red)
-
+/// کارت نمایش وضعیت اتصال با جزئیات دستگاه
+struct ConnectionStatusCard: View {
+    @EnvironmentObject var bleClient: BLEClient
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 16) {
+                // دایره وضعیت اتصال
+                ZStack {
+                    Circle()
+                        .fill(bleClient.isConnected ? Color.green.opacity(0.2) : Color.red.opacity(0.2))
+                        .frame(width: 50, height: 50)
+                    
+                    Circle()
+                        .fill(bleClient.isConnected ? Color.green : Color.red)
+                        .frame(width: 20, height: 20)
+                }
+                
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(bleClient.isConnected ? "متصل به دستگاه اندروید" : "ارتباط قطع است")
+                    Text(bleClient.isConnected ? "متصل" : "قطع ارتباط")
                         .font(.headline)
+                        .foregroundColor(.primary)
+                    
                     Text(bleClient.deviceName)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
+                
                 Spacer()
             }
-
-            Divider()
-
-            HStack(spacing: 24) {
-                Label("\(bleClient.batteryLevel)%", systemImage: "battery.75")
-                    .font(.subheadline)
-                Label(bleClient.simCarrier, systemImage: "simcard")
-                    .font(.subheadline)
-                Spacer()
-
-                Button(bleClient.isConnected ? "قطع اتصال" : "اتصال مجدد") {
-                    if bleClient.isConnected {
-                        bleClient.disconnect()
-                    } else {
-                        bleClient.startScanning()
+            
+            if bleClient.isConnected {
+                Divider()
+                
+                // اطلاعات دستگاه: اپراتور، باتری، سیگنال
+                HStack(spacing: 20) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .foregroundColor(.blue)
+                        Text(bleClient.simCarrier)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: batteryIcon(level: bleClient.batteryLevel))
+                            .foregroundColor(batteryColor(level: bleClient.batteryLevel))
+                        Text("\(bleClient.batteryLevel)%")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "cellularbars")
+                            .foregroundColor(.green)
+                        Text("قوی")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(bleClient.isConnected ? .red : .blue)
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color(uiColor: .secondarySystemBackground)))
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(uiColor: .secondarySystemBackground))
+                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
     }
+    
+    private func batteryIcon(level: Int) -> String {
+        if level > 75 { return "battery.100" }
+        if level > 50 { return "battery.75" }
+        if level > 25 { return "battery.50" }
+        if level > 10 { return "battery.25" }
+        return "battery.0"
+    }
+    
+    private func batteryColor(level: Int) -> Color {
+        if level > 20 { return .green }
+        return .red
+    }
+}
 
-    // MARK: - انجام تماس
-    private func makeCall() {
-        guard !dialedNumber.isEmpty, bleClient.isConnected else { return }
-        bleClient.dial(number: dialedNumber)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+/// نمایشگر تماس فعال با تایمر شمارنده زمان
+struct ActiveCallIndicator: View {
+    @EnvironmentObject var callManager: CallManager
+    @State private var callDuration: TimeInterval = 0
+    @State private var timer: Timer?
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // آیکون تماس در حال انجام
+            ZStack {
+                Circle()
+                    .fill(Color.green.opacity(0.2))
+                    .frame(width: 44, height: 44)
+                
+                Image(systemName: "phone.fill")
+                    .foregroundColor(.green)
+                    .font(.system(size: 18))
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(callManager.callerName.isEmpty ? "در حال تماس..." : callManager.callerName)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text(formatDuration(callDuration))
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+            }
+            
+            Spacer()
+            
+            // انیمیشن پالس برای نشان دادن تماس فعال
+            Circle()
+                .fill(Color.green)
+                .frame(width: 8, height: 8)
+                .overlay(
+                    Circle()
+                        .stroke(Color.green, lineWidth: 2)
+                        .scaleEffect(1.5)
+                        .opacity(0.5)
+                )
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.green.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.green.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .onAppear {
+            startTimer()
+        }
+        .onDisappear {
+            stopTimer()
+        }
+    }
+    
+    private func startTimer() {
+        callDuration = 0
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            callDuration += 1
+        }
+    }
+    
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let hours = Int(duration) / 3600
+        let minutes = (Int(duration) % 3600) / 60
+        let seconds = Int(duration) % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%02d:%02d", minutes, seconds)
+        }
+    }
+}
+
+/// لیست رویدادهای اخیر (تماس‌ها، پیامک‌ها، تغییرات اتصال)
+struct ActivityFeed: View {
+    @EnvironmentObject var bleClient: BLEClient
+    @ObservedObject var activityLog: ActivityLog
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("رویدادهای اخیر")
+                .font(.headline)
+                .padding(.horizontal)
+                .padding(.top, 8)
+            
+            if activityLog.items.isEmpty && bleClient.logs.isEmpty {
+                VStack(spacing: 16) {
+                    Spacer()
+                    
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 50))
+                        .foregroundColor(.secondary)
+                    
+                    VStack(spacing: 4) {
+                        Text("رویدادی ثبت نشده")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text("تماس‌ها و پیامک‌های دریافتی اینجا نمایش داده می‌شوند")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                    }
+                    
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        // نمایش رویدادهای جدید از ActivityLog
+                        ForEach(activityLog.items) { item in
+                            ActivityItemRow(item: item)
+                            Divider()
+                                .padding(.leading, 60)
+                        }
+                        
+                        // نمایش لاگ‌های قدیمی از BLEClient
+                        ForEach(Array(bleClient.logs.enumerated()), id: \.offset) { index, log in
+                            LegacyLogRow(log: log)
+                            if index < bleClient.logs.count - 1 {
+                                Divider()
+                                    .padding(.leading, 60)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// نمایش یک رویداد در لیست
+struct ActivityItemRow: View {
+    let item: ActivityItem
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: item.icon)
+                .font(.system(size: 24))
+                .foregroundColor(.blue)
+                .frame(width: 36, height: 36)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                
+                if !item.subtitle.isEmpty {
+                    Text(item.subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Text(item.timestamp, style: .relative)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal)
+    }
+}
+
+/// نمایش لاگ‌های قدیمی از سیستم BLEClient
+struct LegacyLogRow: View {
+    let log: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "text.alignleft")
+                .font(.system(size: 20))
+                .foregroundColor(.secondary)
+                .frame(width: 36, height: 36)
+            
+            Text(log)
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundColor(.primary)
+                .lineLimit(nil)
+            
+            Spacer()
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal)
+    }
+}
+
+/// صفحه تنظیمات با دکمه‌های کنترل اتصال
+struct SettingsSheet: View {
+    @EnvironmentObject var bleClient: BLEClient
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("اتصال بلوتوث") {
+                    HStack {
+                        Text("وضعیت")
+                        Spacer()
+                        Text(bleClient.isConnected ? "متصل" : "قطع")
+                            .foregroundColor(bleClient.isConnected ? .green : .red)
+                    }
+                    
+                    if bleClient.isConnected {
+                        Button(role: .destructive) {
+                            bleClient.disconnect()
+                        } label: {
+                            Label("قطع اتصال", systemImage: "wifi.slash")
+                        }
+                    } else {
+                        Button {
+                            bleClient.startScanning()
+                        } label: {
+                            Label("اتصال مجدد", systemImage: "arrow.clockwise")
+                        }
+                    }
+                }
+                
+                Section("تنظیمات صوت") {
+                    HStack {
+                        Text("کیفیت صدا")
+                        Spacer()
+                        Text("بالا")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack {
+                        Text("کاهش نویز")
+                        Spacer()
+                        Text("فعال")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Text("تنظیمات صوتی در نسخه‌های بعدی فعال خواهد شد")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Section("درباره") {
+                    HStack {
+                        Text("نسخه")
+                        Spacer()
+                        Text("1.0.0")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("تنظیمات")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("بستن") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }

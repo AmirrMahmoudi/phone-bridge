@@ -25,6 +25,9 @@ public class BLEClient: NSObject, ObservableObject {
     
     // مدیر کانال L2CAP برای انتقال صوت
     private var l2capManager: L2CAPChannelManager?
+    
+    // Callback برای ثبت رویدادها در ActivityLog
+    public var onActivityEvent: ((String, String, String) -> Void)?
 
     override init() {
         super.init()
@@ -67,15 +70,7 @@ public class BLEClient: NSObject, ObservableObject {
         }
     }
 
-    /// برقراری تماس خروجی از طریق سیم‌کارت اندروید
-    public func dial(number: String) {
-        let cleanNumber = number.filter { $0.isNumber || $0 == "+" || $0 == "*" || $0 == "#" }
-        guard !cleanNumber.isEmpty else { return }
 
-        sendCommand(["cmd": "DIAL_CALL", "number": cleanNumber])
-        CallManager.shared.startOutgoingCall(handle: cleanNumber)
-        log("تماس با \(cleanNumber) از طریق سیم‌کارت سامسونگ آغاز شد...")
-    }
 
     public func log(_ msg: String) {
         DispatchQueue.main.async {
@@ -122,17 +117,20 @@ extension BLEClient: CBCentralManagerDelegate {
         self.isConnected = true
         self.deviceName = peripheral.name ?? "Samsung Gateway"
         log("ارتباط با گوشی سامسونگ با موفقیت برقرار شد ✅")
+        onActivityEvent?("antenna.radiowaves.left.and.right", "اتصال برقرار شد", "به \(self.deviceName)")
         peripheral.delegate = self
         peripheral.discoverServices([BLEClient.serviceUUID])
     }
 
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         self.isConnected = false
+        let previousName = self.deviceName
         self.deviceName = "قطع ارتباط"
         // بستن کانال L2CAP
         l2capManager?.disconnect()
         l2capManager = nil
         log("اتصال به سامسونگ قطع شد. تلاش برای اتصال مجدد...")
+        onActivityEvent?("antenna.radiowaves.left.and.right.slash", "اتصال قطع شد", "از \(previousName)")
         startScanning()
     }
 }
@@ -232,6 +230,10 @@ extension BLEClient: CBPeripheralDelegate {
             let callUUID = UUID(uuidString: json["callId"] as? String ?? "") ?? UUID()
             log("📞 تماس ورودی جدید از سامسونگ: \(callerName.isEmpty ? callerNumber : callerName)")
             
+            // ثبت در ActivityLog
+            let displayName = callerName.isEmpty ? callerNumber : callerName
+            onActivityEvent?("phone.arrow.down.left", "تماس ورودی", displayName)
+            
             // فراخوانی رابط کاربری بومی آیفون با CallKit (زنگ خوردن تمام‌صفحه آیفون ۱۷)
             CallManager.shared.reportIncomingCall(uuid: callUUID, handle: callerNumber, callerName: callerName)
 
@@ -239,12 +241,14 @@ extension BLEClient: CBPeripheralDelegate {
             if let activeUUID = CallManager.shared.activeCallUUID {
                 CallManager.shared.endCall(uuid: activeUUID)
                 log("تماس به پایان رسید.")
+                onActivityEvent?("phone.down", "تماس پایان یافت", "")
             }
 
         case "SMS_INCOMING":
             let sender = json["sender"] as? String ?? "ناشناس"
             let body = json["body"] as? String ?? ""
             log("💬 پیامک جدید از \(sender): \(body)")
+            onActivityEvent?("message", "پیامک دریافتی", "از \(sender): \(body.prefix(30))\(body.count > 30 ? "..." : "")")
 
         case "DEVICE_STATUS":
             if let battery = json["batteryLevel"] as? Int {
