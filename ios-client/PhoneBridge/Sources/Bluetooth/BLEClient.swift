@@ -69,13 +69,18 @@ public class BLEClient: NSObject, ObservableObject {
 
     public func setupBluetooth() {
         guard centralManager == nil else { return }
+        var options: [String: Any] = [
+            CBCentralManagerOptionShowPowerAlertKey: true
+        ]
+        // فقط در صورتی که bluetooth-central در Info.plist تعریف شده باشد، Restore Identifier اضافه شود
+        if let bgModes = Bundle.main.infoDictionary?["UIBackgroundModes"] as? [String],
+           bgModes.contains("bluetooth-central") {
+            options[CBCentralManagerOptionRestoreIdentifierKey] = "PhoneBridgeCentralManager"
+        }
         centralManager = CBCentralManager(
             delegate: self,
             queue: nil,
-            options: [
-                CBCentralManagerOptionRestoreIdentifierKey: "PhoneBridgeCentralManager",
-                CBCentralManagerOptionShowPowerAlertKey: true
-            ]
+            options: options
         )
     }
 
