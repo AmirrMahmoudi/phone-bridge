@@ -7,6 +7,13 @@ packages:
   YbridOpus:
     url: https://github.com/ybrid/opus-swift.git
     version: 0.8.0
+schemes:
+  PhoneBridge:
+    build:
+      targets:
+        PhoneBridge: all
+    archive:
+      config: Release
 targets:
   PhoneBridge:
     type: application

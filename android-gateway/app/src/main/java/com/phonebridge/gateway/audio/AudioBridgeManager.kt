@@ -7,9 +7,10 @@ import android.media.AudioTrack
 import android.media.AudioManager
 import android.media.MediaRecorder
 import android.util.Log
-import org.concentus.OpusEncoder
-import org.concentus.OpusDecoder
-import org.concentus.OpusApplication
+import io.github.jaredmdobson.concentus.OpusEncoder
+import io.github.jaredmdobson.concentus.OpusDecoder
+import io.github.jaredmdobson.concentus.OpusApplication
+import io.github.jaredmdobson.concentus.OpusSignal as ConcentusOpusSignal
 import java.io.IOException
 import kotlin.concurrent.thread
 
@@ -67,7 +68,7 @@ class AudioBridgeManager {
         // راه‌اندازی کدک‌های Opus
         opusEncoder = OpusEncoder(SAMPLE_RATE, CHANNELS, OpusApplication.OPUS_APPLICATION_VOIP)
         opusEncoder?.setBitrate(BITRATE)
-        opusEncoder?.setSignalType(OpusSignal.OPUS_SIGNAL_VOICE)
+        opusEncoder?.setSignalType(ConcentusOpusSignal.OPUS_SIGNAL_VOICE)
         
         opusDecoder = OpusDecoder(SAMPLE_RATE, CHANNELS)
 
