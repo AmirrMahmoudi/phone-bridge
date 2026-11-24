@@ -11,7 +11,7 @@
 		5D45CBE52E11475A11DF1084 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */; };
 		7A2D787597391A9497BEBB60 /* PhoneBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FC69B04913D8A8E27C2995 /* PhoneBridgeApp.swift */; };
 		90F846ABB89AB2773CEDED31 /* L2CAPChannelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C236317586D438952965C4 /* L2CAPChannelManager.swift */; };
-		AC07A2C39479A67D238C5EC9 /* OpusKit in Frameworks */ = {isa = PBXBuildFile; productRef = A589D1B90A1BD74A136085EB /* OpusKit */; };
+		AC07A2C39479A67D238C5EC9 /* YbridOpus in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC6BD8950FF3236DF3D2EE5 /* YbridOpus */; };
 		C640C9E3B2CB8BF6C2D29D2D /* SMSDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D884C4851BDD152DB1AF00 /* SMSDetailView.swift */; };
 		EED5547C928A8BDB0D600252 /* AudioStreamManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B87EA7DA61CABF2D89D17CAE /* AudioStreamManager.swift */; };
 		FA964D3F115A01A8F633AF94 /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78535C7304AE0C05F922B3CD /* CallManager.swift */; };
@@ -33,7 +33,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AC07A2C39479A67D238C5EC9 /* OpusKit in Frameworks */,
+				AC07A2C39479A67D238C5EC9 /* YbridOpus in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,7 +126,7 @@
 			);
 			name = PhoneBridge;
 			packageProductDependencies = (
-				A589D1B90A1BD74A136085EB /* OpusKit */,
+				7BC6BD8950FF3236DF3D2EE5 /* YbridOpus */,
 			);
 			productName = PhoneBridge;
 			productReference = F34E9709AD4EB20C8676DBEA /* PhoneBridge.app */;
@@ -156,7 +156,7 @@
 			mainGroup = 45CF36901949355B8E1332A6;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				974E43A7C56BC7DECC42963D /* XCRemoteSwiftPackageReference "OpusKit" */,
+				5E0365651E226C87E1EA9CB0 /* XCRemoteSwiftPackageReference "opus-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 72C03D1B9155183D87FC6B17 /* Products */;
@@ -391,21 +391,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		974E43A7C56BC7DECC42963D /* XCRemoteSwiftPackageReference "OpusKit" */ = {
+		5E0365651E226C87E1EA9CB0 /* XCRemoteSwiftPackageReference "opus-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/chrisballinger/OpusKit.git";
+			repositoryURL = "https://github.com/ybrid/opus-swift.git";
 			requirement = {
 				kind = exactVersion;
-				version = 1.1.0;
+				version = 0.8.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		A589D1B90A1BD74A136085EB /* OpusKit */ = {
+		7BC6BD8950FF3236DF3D2EE5 /* YbridOpus */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 974E43A7C56BC7DECC42963D /* XCRemoteSwiftPackageReference "OpusKit" */;
-			productName = OpusKit;
+			package = 5E0365651E226C87E1EA9CB0 /* XCRemoteSwiftPackageReference "opus-swift" */;
+			productName = YbridOpus;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

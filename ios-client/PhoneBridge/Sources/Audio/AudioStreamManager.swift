@@ -1,6 +1,6 @@
 import Foundation
 import AVFoundation
-import OpusKit
+import YbridOpus
 
 /// مدیریت کانال و نشست صوتی برای مکالمه بدون تاخیر با کدک Opus
 public class AudioStreamManager: NSObject {
@@ -8,8 +8,8 @@ public class AudioStreamManager: NSObject {
 
     private var audioEngine: AVAudioEngine?
     private var playerNode: AVAudioPlayerNode?
-    private var opusEncoder: OPUSEncoder?
-    private var opusDecoder: OPUSDecoder?
+    private var opusEncoder: OpaquePointer?
+    private var opusDecoder: OpaquePointer?
     private var isRunning = false
     
     private var l2capChannel: L2CAPChannelManager?
@@ -76,19 +76,17 @@ public class AudioStreamManager: NSObject {
     }
 
     private func setupOpusCodecs() {
-        // راه‌اندازی Opus encoder
-        opusEncoder = OPUSEncoder(
-            sampleRate: Int32(sampleRate),
-            numberOfChannels: 1,
-            application: .voip
-        )
-        opusEncoder?.bitrate = Int32(bitrate)
+        var encError: Int32 = 0
+        opusEncoder = opus_encoder_create(Int32(sampleRate), Int32(channels), OPUS_APPLICATION_VOIP, &encError)
+        if encError != OPUS_OK || opusEncoder == nil {
+            print("[Audio] ❌ Error creating Opus encoder: \(encError)")
+        }
         
-        // راه‌اندازی Opus decoder
-        opusDecoder = OPUSDecoder(
-            sampleRate: Int32(sampleRate),
-            numberOfChannels: 1
-        )
+        var decError: Int32 = 0
+        opusDecoder = opus_decoder_create(Int32(sampleRate), Int32(channels), &decError)
+        if decError != OPUS_OK || opusDecoder == nil {
+            print("[Audio] ❌ Error creating Opus decoder: \(decError)")
+        }
         
         print("[Audio] Opus encoder/decoder initialized")
     }
@@ -159,10 +157,14 @@ public class AudioStreamManager: NSObject {
         }
         
         // کدگذاری با Opus
-        var encodedData = Data()
-        let encodeResult = encoder.encode(int16Buffer, frameSize: UInt(frameSize), encodedData: &encodedData)
+        var opusPacket = [UInt8](repeating: 0, count: 1024)
+        let encodedBytes: Int32 = int16Buffer.withUnsafeBytes { rawPcmPtr in
+            guard let pcmPtr = rawPcmPtr.bindMemory(to: Int16.self).baseAddress else { return 0 }
+            return opus_encode(encoder, pcmPtr, Int32(frameSize), &opusPacket, Int32(opusPacket.count))
+        }
         
-        if encodeResult && encodedData.count > 0 {
+        if encodedBytes > 0 {
+            let encodedData = Data(bytes: opusPacket, count: Int(encodedBytes))
             // ارسال از طریق L2CAP
             sendAudioPacket(encodedData)
             print("[Audio] Opus encode/send: \(encodedData.count) bytes")
@@ -260,17 +262,17 @@ public class AudioStreamManager: NSObject {
     private func decodeAndPlay(opusData: Data) {
         guard let decoder = opusDecoder, let player = playerNode else { return }
         
-        // دیکد با Opus
-        var pcmData = Data(count: frameSize * 2)
-        var decodedFrames: UInt = 0
+        var pcmBuffer = [Int16](repeating: 0, count: frameSize)
+        let decodedSamples: Int32 = opusData.withUnsafeBytes { rawDataPtr in
+            guard let dataPtr = rawDataPtr.bindMemory(to: UInt8.self).baseAddress else { return 0 }
+            return opus_decode(decoder, dataPtr, Int32(opusData.count), &pcmBuffer, Int32(frameSize), 0)
+        }
         
-        let decodeResult = decoder.decode(opusData, decodedData: &pcmData, decodedFrames: &decodedFrames)
-        
-        if decodeResult && decodedFrames > 0 {
-            // تبدیل به AVAudioPCMBuffer و پخش
-            if let pcmBuffer = createPCMBuffer(from: pcmData, frameCount: Int(decodedFrames)) {
-                player.scheduleBuffer(pcmBuffer, completionHandler: nil)
-                print("[Audio] Opus decode/play: \(decodedFrames) samples from \(opusData.count) bytes")
+        if decodedSamples > 0 {
+            let pcmData = Data(bytes: pcmBuffer, count: Int(decodedSamples) * 2)
+            if let audioPcmBuffer = createPCMBuffer(from: pcmData, frameCount: Int(decodedSamples)) {
+                player.scheduleBuffer(audioPcmBuffer, completionHandler: nil)
+                print("[Audio] Opus decode/play: \(decodedSamples) samples from \(opusData.count) bytes")
             }
         }
     }
@@ -312,8 +314,16 @@ public class AudioStreamManager: NSObject {
         
         audioEngine = nil
         playerNode = nil
-        opusEncoder = nil
-        opusDecoder = nil
+        
+        if let encoder = opusEncoder {
+            opus_encoder_destroy(encoder)
+            opusEncoder = nil
+        }
+        if let decoder = opusDecoder {
+            opus_decoder_destroy(decoder)
+            opusDecoder = nil
+        }
+        
         l2capChannel = nil
         receiveBuffer = Data()
         

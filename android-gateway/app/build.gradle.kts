@@ -35,7 +35,7 @@ android {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.3"
+        kotlinCompilerExtensionVersion = "1.5.10"
     }
 }
 
@@ -44,7 +44,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
-    implementation("org.concentus:concentus:1.17.1")
+    implementation("io.github.jaredmdobson:concentus:1.0.2")
     
     // Compose dependencies
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
