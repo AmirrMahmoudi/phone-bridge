@@ -39,6 +39,7 @@ public class BLEClient: NSObject, ObservableObject {
 
     override init() {
         super.init()
+        setupBluetooth()
         // شروع تایمر برای بررسی heartbeat timeout
         startHeartbeatMonitoring()
     }
@@ -64,12 +65,6 @@ public class BLEClient: NSObject, ObservableObject {
             // قطع اتصال و شروع reconnect
             disconnect()
         }
-    }
-
-    override init() {
-        super.init()
-        setupBluetooth()
-        startHeartbeatMonitor()
     }
 
     public func setupBluetooth() {
