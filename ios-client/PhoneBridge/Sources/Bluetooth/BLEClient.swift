@@ -803,6 +803,11 @@ extension BLEClient: CBPeripheralDelegate {
             if let carrier = json["simCarrier"] as? String {
                 DispatchQueue.main.async { self.simCarrier = carrier }
             }
+        
+        case "CALL_HISTORY_STATS", "CALL_HISTORY_CHUNK", "CALL_HISTORY_COMPLETE", 
+             "CALL_HISTORY_RESPONSE", "CALL_HISTORY_ERROR":
+            // ارسال به CallHistoryManager
+            CallHistoryManager.shared.processIncomingData(json)
 
         default:
             break

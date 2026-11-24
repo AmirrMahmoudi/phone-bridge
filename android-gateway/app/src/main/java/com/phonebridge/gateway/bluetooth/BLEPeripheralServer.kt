@@ -68,6 +68,9 @@ class BLEPeripheralServer(private val context: Context) {
     private var heartbeatHandler: android.os.Handler? = null
     private var heartbeatRunnable: Runnable? = null
     
+    // مدیر تاریخچه تماس
+    private var callHistoryManager: com.phonebridge.gateway.data.CallHistoryManager? = null
+    
     // Advertising callback برای restart
     private var currentAdvertiseCallback: AdvertiseCallback? = null
 
@@ -88,6 +91,9 @@ class BLEPeripheralServer(private val context: Context) {
         
         // راه‌اندازی AudioBridgeManager
         audioBridgeManager = com.phonebridge.gateway.audio.AudioBridgeManager(context)
+        
+        // راه‌اندازی CallHistoryManager
+        callHistoryManager = com.phonebridge.gateway.data.CallHistoryManager(context)
         
         // راه‌اندازی کانال L2CAP برای انتقال صوت
         l2capChannelManager = com.phonebridge.gateway.audio.L2CAPChannelManager(bluetoothAdapter!!).apply {
@@ -501,6 +507,74 @@ class BLEPeripheralServer(private val context: Context) {
                 val recipient = json.optString("recipient")
                 val message = json.optString("body")
                 sendSmsMessage(recipient, message)
+            }
+            "REQUEST_CALL_HISTORY" -> {
+                sendCallHistory()
+            }
+        }
+    }
+    
+    /**
+     * ارسال تاریخچه تماس به iOS به صورت chunk
+     */
+    private fun sendCallHistory() {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            try {
+                val history = callHistoryManager?.getRecentCallHistory(100) ?: emptyList()
+                
+                if (history.isEmpty()) {
+                    Log.w(TAG, "No call history available")
+                    val payload = JSONObject().apply {
+                        put("type", "CALL_HISTORY_RESPONSE")
+                        put("status", "EMPTY")
+                    }
+                    sendNotification(payload.toString())
+                    return@post
+                }
+                
+                // ارسال آمار کلی
+                val stats = callHistoryManager?.getCallHistoryStats()
+                val statsPayload = JSONObject().apply {
+                    put("type", "CALL_HISTORY_STATS")
+                    put("totalCalls", stats?.totalCalls ?: 0)
+                    put("incomingCalls", stats?.incomingCalls ?: 0)
+                    put("outgoingCalls", stats?.outgoingCalls ?: 0)
+                    put("missedCalls", stats?.missedCalls ?: 0)
+                }
+                sendNotification(statsPayload.toString())
+                
+                // تقسیم به chunk و ارسال تدریجی
+                val chunks = callHistoryManager?.splitIntoChunks(history) ?: emptyList()
+                Log.i(TAG, "Sending ${chunks.size} chunks of call history...")
+                
+                chunks.forEachIndexed { index, chunk ->
+                    // تاخیر 200ms بین هر chunk
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        val chunkJson = callHistoryManager?.chunkToJSON(chunk) ?: ""
+                        sendNotification(chunkJson)
+                        Log.d(TAG, "Sent chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks}")
+                        
+                        // بعد از آخرین chunk، بفرست که تموم شد
+                        if (index == chunks.size - 1) {
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                val completePayload = JSONObject().apply {
+                                    put("type", "CALL_HISTORY_COMPLETE")
+                                    put("totalItems", history.size)
+                                }
+                                sendNotification(completePayload.toString())
+                                Log.i(TAG, "✅ Call history sync complete")
+                            }, 200)
+                        }
+                    }, index * 200L)
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending call history", e)
+                val payload = JSONObject().apply {
+                    put("type", "CALL_HISTORY_ERROR")
+                    put("error", e.localizedMessage ?: "Unknown error")
+                }
+                sendNotification(payload.toString())
             }
         }
     }
