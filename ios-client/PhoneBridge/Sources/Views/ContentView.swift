@@ -34,49 +34,37 @@ struct ContentView: View {
     @State private var showSettings = false
 
     var body: some View {
-        TabView {
-            // تب ۱: سوابق تماس‌ها و پیامک‌ها
-            NavigationStack {
-                VStack(spacing: 0) {
-                    // کارت وضعیت اتصال در بالای صفحه
-                    ConnectionStatusCard()
-                        .padding()
-                    
-                    // نمایش وضعیت تماس فعال در صورت وجود
-                    if callManager.activeCallUUID != nil {
-                        ActiveCallIndicator()
-                            .padding(.horizontal)
-                            .padding(.bottom, 8)
-                    }
-                    
-                    // لیست رویدادها
-                    ActivityFeed(activityLog: activityLog)
+        NavigationStack {
+            VStack(spacing: 0) {
+                // کارت وضعیت اتصال در بالای صفحه
+                ConnectionStatusCard()
+                    .padding()
+                
+                // نمایش وضعیت تماس فعال در صورت وجود
+                if callManager.activeCallUUID != nil {
+                    ActiveCallIndicator()
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                 }
-                .navigationTitle("PhoneBridge")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape")
-                        }
+                
+                // لیست رویدادها
+                ActivityFeed(activityLog: activityLog)
+            }
+            .navigationTitle("PhoneBridge")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showSettings = true }) {
+                        Image(systemName: "gearshape")
                     }
                 }
-                .sheet(isPresented: $showSettings) {
-                    SettingsSheet()
-                }
-                .onAppear {
-                    setupActivityLogging()
-                }
             }
-            .tabItem {
-                Label("سوابق", systemImage: "clock.fill")
+            .sheet(isPresented: $showSettings) {
+                SettingsSheet()
             }
-
-            // تب ۲: شماره‌گیر بومی برای تماس خروجی با سیم‌کارت اندروید
-            KeypadView()
-                .tabItem {
-                    Label("شماره‌گیر", systemImage: "circle.grid.3x3.fill")
-                }
+            .onAppear {
+                setupActivityLogging()
+            }
         }
     }
     
@@ -114,6 +102,21 @@ struct ConnectionStatusCard: View {
                     Text(bleClient.deviceName)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                    
+                    // نمایش کیفیت اتصال
+                    if bleClient.isConnected {
+                        HStack(spacing: 4) {
+                            Image(systemName: bleClient.connectionQuality.icon)
+                                .foregroundColor(qualityColor(bleClient.connectionQuality))
+                                .font(.caption)
+                            Text(bleClient.connectionQuality.description)
+                                .font(.caption)
+                                .foregroundColor(qualityColor(bleClient.connectionQuality))
+                            Text("(\(bleClient.rssi) dBm)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
                 
                 Spacer()
@@ -171,6 +174,15 @@ struct ConnectionStatusCard: View {
     private func batteryColor(level: Int) -> Color {
         if level > 20 { return .green }
         return .red
+    }
+    
+    private func qualityColor(_ quality: BLEClient.ConnectionQuality) -> Color {
+        switch quality {
+        case .excellent, .good: return .green
+        case .fair: return .orange
+        case .poor: return .red
+        case .unknown: return .gray
+        }
     }
 }
 

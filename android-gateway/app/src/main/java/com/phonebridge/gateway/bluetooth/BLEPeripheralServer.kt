@@ -50,6 +50,9 @@ class BLEPeripheralServer(private val context: Context) {
     private var audioBridgeManager: com.phonebridge.gateway.audio.AudioBridgeManager? = null
     private var heartbeatHandler: android.os.Handler? = null
     private var heartbeatRunnable: Runnable? = null
+    
+    // Advertising callback برای restart
+    private var currentAdvertiseCallback: AdvertiseCallback? = null
 
     init {
         instance = this
@@ -82,11 +85,20 @@ class BLEPeripheralServer(private val context: Context) {
             }
             startListening()
             
-            // به‌روزرسانی مقدار کاراکتریستیک PSM پس از دریافت PSM از سیستم
-            if (currentPsm > 0) {
-                updatePsmCharacteristic(currentPsm)
-                Log.i(TAG, "PSM characteristic updated with value: $currentPsm")
-            }
+            // به‌روزرسانی PSM با تاخیر کوتاه برای اطمینان از ready بودن
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (currentPsm > 0) {
+                    updatePsmCharacteristic(currentPsm)
+                    Log.i(TAG, "✅ PSM characteristic updated with value: $currentPsm")
+                    
+                    // ارسال event به iOS که PSM آماده است
+                    val payload = JSONObject().apply {
+                        put("type", "L2CAP_READY")
+                        put("psm", currentPsm)
+                    }
+                    sendNotification(payload.toString())
+                }
+            }, 500)
         }
         
         // شروع ارسال heartbeat
@@ -144,7 +156,7 @@ class BLEPeripheralServer(private val context: Context) {
                 super.onConnectionStateChange(device, status, newState)
                 if (device != null) {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
-                        Log.i(TAG, "iPhone connected: ${device.address}")
+                        Log.i(TAG, "✅ iPhone connected: ${device.address}")
                         connectedDevices.add(device)
                         sendDeviceStatus(device)
                         
@@ -158,7 +170,7 @@ class BLEPeripheralServer(private val context: Context) {
                             }
                         }
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                        Log.i(TAG, "iPhone disconnected: ${device.address}")
+                        Log.i(TAG, "❌ iPhone disconnected: ${device.address}")
                         connectedDevices.remove(device)
                         
                         // به‌روزرسانی ViewModel
@@ -172,6 +184,9 @@ class BLEPeripheralServer(private val context: Context) {
                                 }
                             }
                         }
+                        
+                        // شروع مجدد advertising اگر هیچ دستگاهی متصل نیست
+                        restartAdvertising()
                     }
                 }
             }
@@ -286,30 +301,76 @@ class BLEPeripheralServer(private val context: Context) {
     }
 
     private fun startAdvertising() {
-        val advertiser = bluetoothAdapter?.bluetoothLeAdvertiser ?: return
+        val advertiser = bluetoothAdapter?.bluetoothLeAdvertiser
+        if (advertiser == null) {
+            Log.e(TAG, "BLE Advertiser not available")
+            return
+        }
 
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
             .setConnectable(true)
+            .setTimeout(0) // بدون timeout
             .build()
 
         val data = AdvertiseData.Builder()
             .setIncludeDeviceName(true)
+            .setIncludeTxPowerLevel(false)
             .addServiceUuid(ParcelUuid(SERVICE_UUID))
+            .build()
+        
+        // Scan response برای اطلاعات بیشتر
+        val scanResponse = AdvertiseData.Builder()
+            .setIncludeDeviceName(true)
             .build()
 
         val callback = object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-                Log.i(TAG, "BLE Advertisement started successfully.")
+                Log.i(TAG, "✅ BLE Advertisement started successfully")
+                Log.i(TAG, "   Service UUID: $SERVICE_UUID")
+                Log.i(TAG, "   Device Name: ${bluetoothAdapter?.name}")
             }
 
             override fun onStartFailure(errorCode: Int) {
-                Log.e(TAG, "BLE Advertisement failed with code: $errorCode")
+                Log.e(TAG, "❌ BLE Advertisement failed with code: $errorCode")
+                when (errorCode) {
+                    ADVERTISE_FAILED_DATA_TOO_LARGE -> Log.e(TAG, "   Reason: Data too large")
+                    ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> Log.e(TAG, "   Reason: Too many advertisers")
+                    ADVERTISE_FAILED_ALREADY_STARTED -> Log.e(TAG, "   Reason: Already started")
+                    ADVERTISE_FAILED_INTERNAL_ERROR -> Log.e(TAG, "   Reason: Internal error")
+                    ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> Log.e(TAG, "   Reason: Feature unsupported")
+                }
+                
+                // تلاش مجدد بعد از 3 ثانیه
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    startAdvertising()
+                }, 3000)
             }
         }
 
-        advertiser.startAdvertising(settings, data, callback)
+        currentAdvertiseCallback = callback
+        advertiser.startAdvertising(settings, data, scanResponse, callback)
+    }
+    
+    /**
+     * شروع مجدد advertising بعد از disconnect
+     */
+    private fun restartAdvertising() {
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            if (connectedDevices.isEmpty() && bluetoothAdapter?.isEnabled == true) {
+                Log.i(TAG, "🔄 Restarting BLE advertising (no devices connected)...")
+                
+                // توقف advertising قبلی
+                currentAdvertiseCallback?.let { callback ->
+                    bluetoothAdapter?.bluetoothLeAdvertiser?.stopAdvertising(callback)
+                }
+                
+                // کمی تاخیر قبل از شروع مجدد
+                Thread.sleep(100)
+                startAdvertising()
+            }
+        }, 1000)
     }
 
     /**
@@ -381,30 +442,11 @@ class BLEPeripheralServer(private val context: Context) {
                 val muted = json.optBoolean("muted", false)
                 audioBridgeManager?.setMute(muted)
             }
-            "DIAL_CALL" -> {
-                val number = json.optString("phoneNumber")
-                dialOutgoingCall(number)
-            }
             "SEND_SMS" -> {
                 val recipient = json.optString("recipient")
                 val message = json.optString("body")
                 sendSmsMessage(recipient, message)
             }
-        }
-    }
-
-    private fun dialOutgoingCall(phoneNumber: String) {
-        if (phoneNumber.isBlank()) return
-        Log.i(TAG, "Dialing outgoing call via SIM to: $phoneNumber")
-        try {
-            com.phonebridge.gateway.service.PhoneBridgeForegroundService.instance?.setAnsweredFromIphone(true)
-            val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:${Uri.encode(phoneNumber)}")).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
-            startAudioStreaming()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start call to $phoneNumber", e)
         }
     }
 

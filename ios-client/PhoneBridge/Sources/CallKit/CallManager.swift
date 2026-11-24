@@ -79,26 +79,6 @@ public class CallManager: NSObject, ObservableObject {
         reportOrUpdateIncomingCall(uuid: uuid, handle: handle, callerName: callerName, completion: completion)
     }
 
-    /// برقراری تماس خروجی از طریق CallKit
-    public func startOutgoingCall(handle: String) {
-        let uuid = UUID()
-        self.activeCallUUID = uuid
-        self.callerName = handle
-
-        let handleObj = CXHandle(type: .phoneNumber, value: handle)
-        let startCallAction = CXStartCallAction(call: uuid, handle: handleObj)
-        startCallAction.isVideo = false
-
-        let transaction = CXTransaction(action: startCallAction)
-        callController.request(transaction) { error in
-            if let error = error {
-                print("[CallKit] Request start outgoing call error: \(error.localizedDescription)")
-            } else {
-                print("[CallKit] Outgoing call requested: \(handle)")
-            }
-        }
-    }
-
     /// بستن صفحه تماس هنگامی که تماس مستقیماً روی گوشی اندروید پاسخ داده شده است
     public func dismissCall(uuid: UUID) {
         guard self.activeCallUUID == uuid else { return }
