@@ -396,8 +396,17 @@ struct SettingsSheet: View {
                     HStack {
                         Text("وضعیت")
                         Spacer()
-                        Text(bleClient.isConnected ? "متصل" : "قطع")
-                            .foregroundColor(bleClient.isConnected ? .green : .red)
+                        if bleClient.isReconnecting {
+                            HStack(spacing: 4) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("در حال اتصال مجدد...")
+                                    .foregroundColor(.orange)
+                            }
+                        } else {
+                            Text(bleClient.isConnected ? "متصل" : "قطع")
+                                .foregroundColor(bleClient.isConnected ? .green : .red)
+                        }
                     }
                     
                     if bleClient.isConnected {
@@ -445,6 +454,77 @@ struct SettingsSheet: View {
                 }
             }
             .navigationTitle("تنظیمات")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("بستن") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// نمایش جزئیات پیامک دریافتی
+struct SMSDetailView: View {
+    let sender: String
+    let body: String
+    let timestamp: Date
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // اطلاعات فرستنده
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("از:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text(sender)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(uiColor: .secondarySystemBackground))
+                    .cornerRadius(12)
+                    
+                    // زمان دریافت
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("زمان:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text(timestamp, style: .date) + Text(" - ") + Text(timestamp, style: .time)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(uiColor: .secondarySystemBackground))
+                    .cornerRadius(12)
+                    
+                    // متن پیامک
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("پیام:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text(body)
+                            .font(.body)
+                            .lineSpacing(4)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(uiColor: .secondarySystemBackground))
+                    .cornerRadius(12)
+                    
+                    Spacer()
+                }
+                .padding()
+            }
+            .navigationTitle("جزئیات پیامک")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {

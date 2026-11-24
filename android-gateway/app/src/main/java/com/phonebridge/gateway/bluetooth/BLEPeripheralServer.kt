@@ -48,7 +48,8 @@ class BLEPeripheralServer(private val context: Context) {
     // مدیریت کانال L2CAP برای انتقال صوت
     private var l2capChannelManager: com.phonebridge.gateway.audio.L2CAPChannelManager? = null
     private var audioBridgeManager: com.phonebridge.gateway.audio.AudioBridgeManager? = null
-    private var audioBridgeManager: com.phonebridge.gateway.audio.AudioBridgeManager? = null
+    private var heartbeatHandler: android.os.Handler? = null
+    private var heartbeatRunnable: Runnable? = null
 
     init {
         instance = this
@@ -76,6 +77,8 @@ class BLEPeripheralServer(private val context: Context) {
             onDisconnected = {
                 Log.i(TAG, "L2CAP audio channel disconnected")
                 audioBridgeManager?.stopStreaming()
+                // تلاش مجدد برای L2CAP در پس‌زمینه
+                retryL2CAPConnection()
             }
             startListening()
             
@@ -85,6 +88,54 @@ class BLEPeripheralServer(private val context: Context) {
                 Log.i(TAG, "PSM characteristic updated with value: $currentPsm")
             }
         }
+        
+        // شروع ارسال heartbeat
+        startHeartbeat()
+    }
+    
+    /**
+     * تلاش مجدد برای برقراری L2CAP connection
+     */
+    private fun retryL2CAPConnection() {
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            if (connectedDevices.isEmpty()) return@postDelayed
+            
+            Log.i(TAG, "🔄 Retrying L2CAP connection...")
+            try {
+                l2capChannelManager?.startListening()
+                Log.i(TAG, "✅ L2CAP listener restarted")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ L2CAP retry failed: ${e.message}")
+            }
+        }, 2000) // تلاش مجدد بعد از ۲ ثانیه
+    }
+    
+    /**
+     * شروع ارسال heartbeat هر ۳۰ ثانیه
+     */
+    private fun startHeartbeat() {
+        heartbeatHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        heartbeatRunnable = object : Runnable {
+            override fun run() {
+                if (connectedDevices.isNotEmpty()) {
+                    Log.d(TAG, "Sending heartbeat to connected devices")
+                    sendDeviceStatus()
+                }
+                heartbeatHandler?.postDelayed(this, 30000) // هر ۳۰ ثانیه
+            }
+        }
+        heartbeatHandler?.postDelayed(heartbeatRunnable!!, 30000)
+        Log.i(TAG, "Heartbeat started (every 30 seconds)")
+    }
+    
+    /**
+     * توقف heartbeat
+     */
+    private fun stopHeartbeat() {
+        heartbeatRunnable?.let { heartbeatHandler?.removeCallbacks(it) }
+        heartbeatHandler = null
+        heartbeatRunnable = null
+        Log.i(TAG, "Heartbeat stopped")
     }
 
     private fun setupGattServer() {
@@ -426,6 +477,7 @@ class BLEPeripheralServer(private val context: Context) {
      * توقف سرور و بستن تمام اتصالات
      */
     fun stopServer() {
+        stopHeartbeat()
         l2capChannelManager?.stopListening()
         l2capChannelManager = null
         gattServer?.close()

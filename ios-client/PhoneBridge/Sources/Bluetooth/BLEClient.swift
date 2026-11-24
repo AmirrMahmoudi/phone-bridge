@@ -23,15 +23,47 @@ public class BLEClient: NSObject, ObservableObject {
     @Published public var batteryLevel: Int = 0
     @Published public var simCarrier: String = "-"
     @Published public var logs: [String] = []
+    @Published public var isReconnecting: Bool = false
     
     // مدیر کانال L2CAP برای انتقال صوت
     private var l2capManager: L2CAPChannelManager?
     
     // Callback برای ثبت رویدادها در ActivityLog
     public var onActivityEvent: ((String, String, String, String?, String?) -> Void)?
+    
+    // اتصال مجدد با exponential backoff
+    private var reconnectAttempt: Int = 0
+    private var reconnectTimer: Timer?
+    private var lastHeartbeatTime: Date?
+    private var heartbeatTimer: Timer?
 
     override init() {
         super.init()
+        // شروع تایمر برای بررسی heartbeat timeout
+        startHeartbeatMonitoring()
+    }
+    
+    /**
+     * شروع مانیتورینگ heartbeat (بررسی هر ۳۰ ثانیه)
+     */
+    private func startHeartbeatMonitoring() {
+        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+            self?.checkHeartbeatTimeout()
+        }
+    }
+    
+    /**
+     * بررسی timeout برای heartbeat (۶۰ ثانیه)
+     */
+    private func checkHeartbeatTimeout() {
+        guard isConnected, let lastTime = lastHeartbeatTime else { return }
+        
+        let elapsed = Date().timeIntervalSince(lastTime)
+        if elapsed > 60.0 {
+            log("⚠️ Heartbeat timeout detected (no DEVICE_STATUS for \(Int(elapsed))s)")
+            // قطع اتصال و شروع reconnect
+            disconnect()
+        }
     }
 
     public func setupBluetooth() {
@@ -49,12 +81,46 @@ public class BLEClient: NSObject, ObservableObject {
     }
 
     public func disconnect() {
+        reconnectTimer?.invalidate()
+        reconnectTimer = nil
+        reconnectAttempt = 0
+        
         if let peripheral = peripheral, let central = centralManager {
             central.cancelPeripheralConnection(peripheral)
         }
         // بستن کانال L2CAP در صورت قطع اتصال
         l2capManager?.disconnect()
         l2capManager = nil
+    }
+    
+    /**
+     * شروع اتصال مجدد با exponential backoff
+     */
+    private func scheduleReconnect() {
+        reconnectTimer?.invalidate()
+        
+        // محاسبه تاخیر: 1s, 2s, 4s, 8s, max 30s
+        let delays = [1.0, 2.0, 4.0, 8.0, 30.0]
+        let delayIndex = min(reconnectAttempt, delays.count - 1)
+        let delay = delays[delayIndex]
+        
+        reconnectAttempt += 1
+        isReconnecting = true
+        
+        log("Connection lost, attempting reconnect \(reconnectAttempt)/5 after \(Int(delay))s")
+        
+        reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            
+            if self.reconnectAttempt <= 5 {
+                self.log("🔄 Reconnecting (attempt \(self.reconnectAttempt))...")
+                self.startScanning()
+            } else {
+                self.log("❌ Max reconnection attempts reached")
+                self.isReconnecting = false
+                self.reconnectAttempt = 0
+            }
+        }
     }
 
     public func sendCommand(_ dict: [String: Any]) {
@@ -117,7 +183,22 @@ extension BLEClient: CBCentralManagerDelegate {
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         self.isConnected = true
         self.deviceName = peripheral.name ?? "Samsung Gateway"
+        
+        // ریست reconnect state
+        reconnectAttempt = 0
+        isReconnecting = false
+        reconnectTimer?.invalidate()
+        reconnectTimer = nil
+        
+        // ریست heartbeat timer
+        lastHeartbeatTime = Date()
+        
         log("ارتباط با گوشی سامسونگ با موفقیت برقرار شد ✅")
+        
+        if reconnectAttempt > 0 {
+            log("✅ Connection recovered after \(reconnectAttempt) attempts")
+        }
+        
         onActivityEvent?("antenna.radiowaves.left.and.right", "اتصال برقرار شد", "به \(self.deviceName)")
         peripheral.delegate = self
         peripheral.discoverServices([BLEClient.serviceUUID])
@@ -127,12 +208,16 @@ extension BLEClient: CBCentralManagerDelegate {
         self.isConnected = false
         let previousName = self.deviceName
         self.deviceName = "قطع ارتباط"
+        
         // بستن کانال L2CAP
         l2capManager?.disconnect()
         l2capManager = nil
+        
         log("اتصال به سامسونگ قطع شد. تلاش برای اتصال مجدد...")
         onActivityEvent?("antenna.radiowaves.left.and.right.slash", "اتصال قطع شد", "از \(previousName)")
-        startScanning()
+        
+        // شروع اتصال مجدد با exponential backoff
+        scheduleReconnect()
     }
 }
 
@@ -259,6 +344,9 @@ extension BLEClient: CBPeripheralDelegate {
             showSMSNotification(sender: displayName, body: body)
 
         case "DEVICE_STATUS":
+            // به‌روزرسانی زمان آخرین heartbeat
+            lastHeartbeatTime = Date()
+            
             if let battery = json["batteryLevel"] as? Int {
                 DispatchQueue.main.async { self.batteryLevel = battery }
             }

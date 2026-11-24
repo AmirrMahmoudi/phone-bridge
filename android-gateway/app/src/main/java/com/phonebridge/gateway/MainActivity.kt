@@ -5,13 +5,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioManager
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.telephony.TelephonyManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -53,6 +57,7 @@ class MainActivity : ComponentActivity() {
         }
 
         checkAndRequestPermissions()
+        checkBatteryOptimization()
         startDeviceStatusUpdates()
     }
 
@@ -159,5 +164,34 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         instance = null
+    }
+    
+    /**
+     * بررسی و درخواست معافیت از بهینه‌سازی باتری
+     */
+    private fun checkBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            val packageName = packageName
+            
+            if (powerManager?.isIgnoringBatteryOptimizations(packageName) == false) {
+                // نمایش دیالوگ درخواست معافیت
+                AlertDialog.Builder(this)
+                    .setTitle("درخواست معافیت از بهینه‌سازی باتری")
+                    .setMessage("برای اطمینان از عملکرد مداوم PhoneBridge در پس‌زمینه، لطفاً این برنامه را از بهینه‌سازی باتری معاف کنید.")
+                    .setPositiveButton("تنظیمات") { _, _ ->
+                        try {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:$packageName")
+                            }
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            android.util.Log.e("MainActivity", "Error opening battery optimization settings", e)
+                        }
+                    }
+                    .setNegativeButton("بعداً", null)
+                    .show()
+            }
+        }
     }
 }

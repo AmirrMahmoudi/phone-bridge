@@ -51,53 +51,77 @@ class AudioBridgeManager {
         isStreaming = true
 
         try {
-            // راه‌اندازی کدک‌های Opus
-            opusEncoder = OpusEncoder(SAMPLE_RATE, CHANNELS, OpusApplication.OPUS_APPLICATION_VOIP)
-            opusEncoder?.setBitrate(BITRATE)
-            opusEncoder?.setSignalType(OpusSignal.OPUS_SIGNAL_VOICE)
-            
-            opusDecoder = OpusDecoder(SAMPLE_RATE, CHANNELS)
-
-            // راه‌اندازی AudioRecord برای ضبط صدا
-            val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG_IN, AUDIO_FORMAT)
-            audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                SAMPLE_RATE,
-                CHANNEL_CONFIG_IN,
-                AUDIO_FORMAT,
-                maxOf(minBufferSize, FRAME_SIZE * 2 * 4)
-            )
-
-            // راه‌اندازی AudioTrack برای پخش صدا
-            val minPlaybackBuffer = AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG_OUT, AUDIO_FORMAT)
-            audioTrack = AudioTrack(
-                AudioManager.STREAM_VOICE_CALL,
-                SAMPLE_RATE,
-                CHANNEL_CONFIG_OUT,
-                AUDIO_FORMAT,
-                maxOf(minPlaybackBuffer, FRAME_SIZE * 2 * 4),
-                AudioTrack.MODE_STREAM
-            )
-
-            audioRecord?.startRecording()
-            audioTrack?.play()
-
-            // Thread برای ضبط، کدگذاری و ارسال
-            captureThread = thread(name = "Audio-Capture-Encode-Send") {
-                captureEncodeAndSend()
-            }
-
-            // Thread برای دریافت، دیکد و پخش
-            playbackThread = thread(name = "Audio-Receive-Decode-Play") {
-                receiveDecodeAndPlay()
-            }
-
+            initializeAudioComponents()
             Log.i(TAG, "Audio streaming started با Opus codec (16kHz mono, 20ms frames, 20kbps)")
-
         } catch (e: Exception) {
             Log.e(TAG, "خطا در راه‌اندازی audio streaming", e)
-            stopStreaming()
+            // تلاش مجدد یک بار
+            retryAudioSetup()
         }
+    }
+    
+    /**
+     * راه‌اندازی کامپوننت‌های صوتی
+     */
+    private fun initializeAudioComponents() {
+        // راه‌اندازی کدک‌های Opus
+        opusEncoder = OpusEncoder(SAMPLE_RATE, CHANNELS, OpusApplication.OPUS_APPLICATION_VOIP)
+        opusEncoder?.setBitrate(BITRATE)
+        opusEncoder?.setSignalType(OpusSignal.OPUS_SIGNAL_VOICE)
+        
+        opusDecoder = OpusDecoder(SAMPLE_RATE, CHANNELS)
+
+        // راه‌اندازی AudioRecord برای ضبط صدا
+        val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG_IN, AUDIO_FORMAT)
+        audioRecord = AudioRecord(
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+            SAMPLE_RATE,
+            CHANNEL_CONFIG_IN,
+            AUDIO_FORMAT,
+            maxOf(minBufferSize, FRAME_SIZE * 2 * 4)
+        )
+
+        // راه‌اندازی AudioTrack برای پخش صدا
+        val minPlaybackBuffer = AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG_OUT, AUDIO_FORMAT)
+        audioTrack = AudioTrack(
+            AudioManager.STREAM_VOICE_CALL,
+            SAMPLE_RATE,
+            CHANNEL_CONFIG_OUT,
+            AUDIO_FORMAT,
+            maxOf(minPlaybackBuffer, FRAME_SIZE * 2 * 4),
+            AudioTrack.MODE_STREAM
+        )
+
+        audioRecord?.startRecording()
+        audioTrack?.play()
+
+        // Thread برای ضبط، کدگذاری و ارسال
+        captureThread = thread(name = "Audio-Capture-Encode-Send") {
+            captureEncodeAndSend()
+        }
+
+        // Thread برای دریافت، دیکد و پخش
+        playbackThread = thread(name = "Audio-Receive-Decode-Play") {
+            receiveDecodeAndPlay()
+        }
+    }
+    
+    /**
+     * تلاش مجدد برای راه‌اندازی audio
+     */
+    private fun retryAudioSetup() {
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            if (!isStreaming) return@postDelayed
+            
+            Log.i(TAG, "Retrying audio setup...")
+            try {
+                initializeAudioComponents()
+                Log.i(TAG, "✅ Audio streaming started on retry")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Failed to start audio streaming after retry", e)
+                stopStreaming()
+            }
+        }, 1000)
     }
 
     /**

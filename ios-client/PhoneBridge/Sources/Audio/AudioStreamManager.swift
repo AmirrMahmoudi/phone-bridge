@@ -44,6 +44,34 @@ public class AudioStreamManager: NSObject {
             print("[Audio] Audio session started با Opus codec (16kHz mono, 20ms frames, 20kbps)")
         } catch {
             print("[Audio] Failed to activate audio session: \(error)")
+            // تلاش مجدد یک بار
+            retryAudioSessionSetup()
+        }
+    }
+    
+    /**
+     * تلاش مجدد برای راه‌اندازی audio session
+     */
+    private func retryAudioSessionSetup() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self, !self.isRunning else { return }
+            
+            print("[Audio] Retrying audio session setup...")
+            let audioSession = AVAudioSession.sharedInstance()
+            do {
+                try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .defaultToSpeaker])
+                try audioSession.setPreferredSampleRate(self.sampleRate)
+                try audioSession.setPreferredIOBufferDuration(0.02)
+                try audioSession.setActive(true)
+                
+                self.setupOpusCodecs()
+                self.setupAudioEngine()
+                
+                self.isRunning = true
+                print("[Audio] ✅ Audio session started on retry")
+            } catch {
+                print("[Audio] ❌ Failed to start audio session after retry: \(error)")
+            }
         }
     }
 
@@ -107,6 +135,17 @@ public class AudioStreamManager: NSObject {
             print("[Audio] AVAudioEngine started successfully")
         } catch {
             print("[Audio] Failed to start audio engine: \(error)")
+            // تلاش مجدد یک بار
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                guard let self = self else { return }
+                do {
+                    try engine.start()
+                    player.play()
+                    print("[Audio] ✅ AVAudioEngine started on retry")
+                } catch {
+                    print("[Audio] ❌ Failed to start audio engine after retry: \(error)")
+                }
+            }
         }
     }
 
