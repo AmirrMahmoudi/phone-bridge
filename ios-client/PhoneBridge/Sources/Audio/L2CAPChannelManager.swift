@@ -126,7 +126,7 @@ public class L2CAPChannelManager: NSObject {
 
 // MARK: - StreamDelegate
 extension L2CAPChannelManager: StreamDelegate {
-    func stream(_ aStream: Stream, handle eventCode: Stream.Event) {
+    public func stream(_ aStream: Stream, handle eventCode: Stream.Event) {
         switch eventCode {
         case .hasBytesAvailable:
             if let inputStream = aStream as? InputStream {

@@ -199,7 +199,7 @@ extension BLEClient: CBCentralManagerDelegate {
             log("✅ Connection recovered after \(reconnectAttempt) attempts")
         }
         
-        onActivityEvent?("antenna.radiowaves.left.and.right", "اتصال برقرار شد", "به \(self.deviceName)")
+        onActivityEvent?("antenna.radiowaves.left.and.right", "اتصال برقرار شد", "به \(self.deviceName)", nil, nil)
         peripheral.delegate = self
         peripheral.discoverServices([BLEClient.serviceUUID])
     }
@@ -214,7 +214,7 @@ extension BLEClient: CBCentralManagerDelegate {
         l2capManager = nil
         
         log("اتصال به سامسونگ قطع شد. تلاش برای اتصال مجدد...")
-        onActivityEvent?("antenna.radiowaves.left.and.right.slash", "اتصال قطع شد", "از \(previousName)")
+        onActivityEvent?("antenna.radiowaves.left.and.right.slash", "اتصال قطع شد", "از \(previousName)", nil, nil)
         
         // شروع اتصال مجدد با exponential backoff
         scheduleReconnect()
