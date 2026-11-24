@@ -163,6 +163,32 @@ public class BLEClient: NSObject, ObservableObject {
     public func getL2CAPChannel() -> L2CAPChannelManager? {
         return l2capManager
     }
+
+    /// برقراری تماس خروجی از طریق سیم‌کارت اندروید
+    public func dial(phoneNumber: String) {
+        let trimmed = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        log("📞 در حال برقراری تماس خروجی با: \(trimmed)")
+        sendCommand(["cmd": "DIAL_CALL", "phoneNumber": trimmed])
+
+        // ثبت در ActivityLog
+        onActivityEvent?("phone.arrow.up.right", "تماس خروجی", trimmed, nil, nil)
+
+        // رجیستر تماس در CallKit و شروع موتور صدا
+        CallManager.shared.startOutgoingCall(handle: trimmed)
+        AudioStreamManager.shared.startAudioSession()
+        if let mgr = l2capManager {
+            AudioStreamManager.shared.startReceiving(channel: mgr)
+        }
+    }
+
+    /// ارسال پیامک از طریق سیم‌کارت اندروید
+    public func sendSMS(recipient: String, message: String) {
+        guard !recipient.isEmpty, !message.isEmpty else { return }
+        log("✉️ در حال ارسال پیامک به \(recipient)")
+        sendCommand(["cmd": "SEND_SMS", "recipient": recipient, "body": message])
+        onActivityEvent?("paperplane.fill", "پیامک ارسال شد", "\(recipient): \(message)", message, recipient)
+    }
 }
 
 // MARK: - CBCentralManagerDelegate
@@ -364,6 +390,21 @@ extension BLEClient: CBPeripheralDelegate {
                 onActivityEvent?("phone.down", "تماس پایان یافت", "", nil, nil)
             }
 
+        case "CALL_ANSWERED_LOCALLY":
+            let callUUID = UUID(uuidString: json["callId"] as? String ?? "") ?? CallManager.shared.activeCallUUID ?? UUID()
+            log("تماس مستقیماً از روی گوشی اندروید پاسخ داده شد.")
+            CallManager.shared.dismissCall(uuid: callUUID)
+            onActivityEvent?("phone.bubble.left", "پاسخ روی اندروید", "مکالمه روی گوشی دوم ادامه دارد", nil, nil)
+
+        case "SMS_SENT_STATUS":
+            let status = json["status"] as? String ?? ""
+            let recipient = json["recipient"] as? String ?? ""
+            if status == "SUCCESS" {
+                log("✅ پیامک به \(recipient) با موفقیت ارسال شد.")
+            } else {
+                log("❌ خطا در ارسال پیامک به \(recipient)")
+            }
+
         case "SMS_INCOMING":
             let sender = json["sender"] as? String ?? "ناشناس"
             let senderName = json["senderName"] as? String ?? ""
@@ -382,7 +423,13 @@ extension BLEClient: CBPeripheralDelegate {
             lastHeartbeatTime = Date()
             
             if let battery = json["batteryLevel"] as? Int {
-                DispatchQueue.main.async { self.batteryLevel = battery }
+                DispatchQueue.main.async {
+                    if battery < 20 && self.batteryLevel >= 20 {
+                        self.log("⚠️ هشدار: باتری گوشی دوم به کمتر از ۲۰٪ رسید!")
+                        self.showBatteryNotification(level: battery)
+                    }
+                    self.batteryLevel = battery
+                }
             }
             if let carrier = json["simCarrier"] as? String {
                 DispatchQueue.main.async { self.simCarrier = carrier }
@@ -413,5 +460,26 @@ extension BLEClient: CBPeripheralDelegate {
                 self.log("خطا در نمایش نوتیفیکیشن: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// نمایش هشدار باتری ضعیف گوشی دوم
+    private func showBatteryNotification(level: Int) {
+        let content = UNMutableNotificationContent()
+        content.title = "باتری ضعیف گوشی دوم"
+        content.body = "شارژ گوشی اندروید به \(level)٪ رسید. لطفاً آن را به شارژر متصل کنید."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "LOW_BATTERY_ALERT",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                self.log("خطا در نمایش هشدار باتری: \(error.localizedDescription)")
+            }
+        }
+    }
     }
 }

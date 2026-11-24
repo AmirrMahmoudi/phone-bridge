@@ -1,13 +1,17 @@
 import SwiftUI
 
-/// صفحه نمایش جزئیات کامل پیامک
+/// صفحه نمایش جزئیات کامل پیامک و امکان پاسخ مستقیم با سیم‌کارت اندروید
 struct SMSDetailView: View {
     let sender: String
     let messageBody: String
     let timestamp: Date
     
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var bleClient: BLEClient
+    
+    @State private var replyText: String = ""
     @State private var showCopyConfirmation = false
+    @State private var showSentConfirmation = false
     
     var body: some View {
         NavigationStack {
@@ -66,8 +70,8 @@ struct SMSDetailView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
+                        .background(Color(.systemGray5))
+                        .foregroundColor(.primary)
                         .cornerRadius(12)
                     }
                     
@@ -83,6 +87,42 @@ struct SMSDetailView: View {
                         .background(Color.green.opacity(0.1))
                         .cornerRadius(8)
                     }
+                    
+                    Divider()
+                        .padding(.vertical, 8)
+                    
+                    // بخش پاسخ سریع از طریق سیم‌کارت اندروید
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("پاسخ سریع با سیم‌کارت اندروید")
+                            .font(.headline)
+                        
+                        HStack {
+                            TextField("متن پیامک پاسخ...", text: $replyText)
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(10)
+                            
+                            Button(action: sendReply) {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.system(size: 36))
+                                    .foregroundColor(replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !bleClient.isConnected ? .gray : .blue)
+                            }
+                            .disabled(replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !bleClient.isConnected)
+                        }
+                        
+                        if showSentConfirmation {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("دستور ارسال پیامک به اندروید فرستاده شد")
+                                    .font(.caption)
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6).opacity(0.5))
+                    .cornerRadius(12)
                 }
                 .padding()
             }
@@ -98,18 +138,25 @@ struct SMSDetailView: View {
         }
     }
     
-    /// کپی کردن متن پیام به کلیپ‌بورد
     private func copyMessage() {
         UIPasteboard.general.string = messageBody
         showCopyConfirmation = true
-        
-        // پنهان کردن پیام تایید بعد از 2 ثانیه
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             showCopyConfirmation = false
         }
     }
     
-    /// فرمت کردن تاریخ به فرمت قابل خواندن
+    private func sendReply() {
+        let text = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        bleClient.sendSMS(recipient: sender, message: text)
+        replyText = ""
+        showSentConfirmation = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            showSentConfirmation = false
+        }
+    }
+    
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -117,12 +164,4 @@ struct SMSDetailView: View {
         formatter.locale = Locale(identifier: "fa_IR")
         return formatter.string(from: date)
     }
-}
-
-#Preview {
-    SMSDetailView(
-        sender: "09123456789",
-        messageBody: "این یک پیام تستی است که برای نمایش در حالت پیش‌نمایش استفاده می‌شود.",
-        timestamp: Date()
-    )
 }

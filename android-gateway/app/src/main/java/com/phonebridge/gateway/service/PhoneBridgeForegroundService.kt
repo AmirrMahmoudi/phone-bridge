@@ -131,6 +131,11 @@ class PhoneBridgeForegroundService : Service() {
 
     private var incomingCallerName: String? = null
     private var currentCallId: String? = null
+    private var answeredFromIphone = false
+
+    fun setAnsweredFromIphone(answered: Boolean) {
+        this.answeredFromIphone = answered
+    }
 
     fun handleIncomingNumber(number: String, contactName: String? = null) {
         this.incomingNumber = number
@@ -165,7 +170,16 @@ class PhoneBridgeForegroundService : Service() {
                 }
             }
             TelephonyManager.CALL_STATE_OFFHOOK -> {
-                Log.i(TAG, "Call in progress / answered")
+                Log.i(TAG, "Call offhook / answered. Answered from iPhone: $answeredFromIphone")
+                if (!answeredFromIphone) {
+                    // اگر کاربر مستقیم از روی خود گوشی اندروید تماس را پاسخ داد، صفحه آیفون را ببند
+                    Log.i(TAG, "Call answered directly on Android. Notifying iPhone to dismiss ringing screen.")
+                    val payload = JSONObject().apply {
+                        put("type", "CALL_ANSWERED_LOCALLY")
+                        put("callId", currentCallId ?: "")
+                    }
+                    BLEPeripheralServer.instance?.sendNotification(payload.toString())
+                }
             }
             TelephonyManager.CALL_STATE_IDLE -> {
                 if (lastCallState == TelephonyManager.CALL_STATE_RINGING || lastCallState == TelephonyManager.CALL_STATE_OFFHOOK) {
@@ -180,6 +194,7 @@ class PhoneBridgeForegroundService : Service() {
                 incomingNumber = null
                 incomingCallerName = null
                 currentCallId = null
+                answeredFromIphone = false
             }
         }
         lastCallState = state

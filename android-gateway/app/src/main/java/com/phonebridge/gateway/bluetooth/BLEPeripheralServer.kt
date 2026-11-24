@@ -381,10 +381,71 @@ class BLEPeripheralServer(private val context: Context) {
                 val muted = json.optBoolean("muted", false)
                 audioBridgeManager?.setMute(muted)
             }
+            "DIAL_CALL" -> {
+                val number = json.optString("phoneNumber")
+                dialOutgoingCall(number)
+            }
+            "SEND_SMS" -> {
+                val recipient = json.optString("recipient")
+                val message = json.optString("body")
+                sendSmsMessage(recipient, message)
+            }
+        }
+    }
+
+    private fun dialOutgoingCall(phoneNumber: String) {
+        if (phoneNumber.isBlank()) return
+        Log.i(TAG, "Dialing outgoing call via SIM to: $phoneNumber")
+        try {
+            com.phonebridge.gateway.service.PhoneBridgeForegroundService.instance?.setAnsweredFromIphone(true)
+            val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:${Uri.encode(phoneNumber)}")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            startAudioStreaming()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start call to $phoneNumber", e)
+        }
+    }
+
+    private fun sendSmsMessage(recipient: String, message: String) {
+        if (recipient.isBlank() || message.isBlank()) return
+        Log.i(TAG, "Sending SMS via Android SIM to: $recipient")
+        try {
+            val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                context.getSystemService(android.telephony.SmsManager::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                android.telephony.SmsManager.getDefault()
+            }
+            val parts = smsManager.divideMessage(message)
+            if (parts.size > 1) {
+                smsManager.sendMultipartTextMessage(recipient, null, parts, null, null)
+            } else {
+                smsManager.sendTextMessage(recipient, null, message, null, null)
+            }
+            Log.i(TAG, "SMS sent successfully to $recipient")
+            val payload = JSONObject().apply {
+                put("type", "SMS_SENT_STATUS")
+                put("recipient", recipient)
+                put("status", "SUCCESS")
+                put("timestamp", System.currentTimeMillis() / 1000)
+            }
+            sendNotification(payload.toString())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed sending SMS to $recipient", e)
+            val payload = JSONObject().apply {
+                put("type", "SMS_SENT_STATUS")
+                put("recipient", recipient)
+                put("status", "FAILED")
+                put("error", e.localizedMessage ?: "Unknown error")
+            }
+            sendNotification(payload.toString())
         }
     }
 
     private fun answerCall() {
+        com.phonebridge.gateway.service.PhoneBridgeForegroundService.instance?.setAnsweredFromIphone(true)
         if (PhoneBridgeCallService.currentCall != null) {
             PhoneBridgeCallService.answerCurrentCall()
             Log.i(TAG, "Call answered via InCallService.")

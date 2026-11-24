@@ -79,9 +79,32 @@ public class CallManager: NSObject, ObservableObject {
         reportOrUpdateIncomingCall(uuid: uuid, handle: handle, callerName: callerName, completion: completion)
     }
 
-    /// @deprecated متد دیگر استفاده نمی‌شود - تماس‌های خروجی فقط از طریق اپ Phone بومی آیفون
+    /// برقراری تماس خروجی از طریق CallKit
     public func startOutgoingCall(handle: String) {
-        print("[CallKit] Warning: startOutgoingCall() is deprecated and unused. Use native iOS Phone app for outgoing calls.")
+        let uuid = UUID()
+        self.activeCallUUID = uuid
+        self.callerName = handle
+
+        let handleObj = CXHandle(type: .phoneNumber, value: handle)
+        let startCallAction = CXStartCallAction(call: uuid, handle: handleObj)
+        startCallAction.isVideo = false
+
+        let transaction = CXTransaction(action: startCallAction)
+        callController.request(transaction) { error in
+            if let error = error {
+                print("[CallKit] Request start outgoing call error: \(error.localizedDescription)")
+            } else {
+                print("[CallKit] Outgoing call requested: \(handle)")
+            }
+        }
+    }
+
+    /// بستن صفحه تماس هنگامی که تماس مستقیماً روی گوشی اندروید پاسخ داده شده است
+    public func dismissCall(uuid: UUID) {
+        guard self.activeCallUUID == uuid else { return }
+        provider?.reportCall(with: uuid, endedAt: Date(), reason: .answeredElsewhere)
+        self.activeCallUUID = nil
+        print("[CallKit] Call dismissed (answered on Android device)")
     }
 
     /// پایان دادن به تماس در لایه CallKit

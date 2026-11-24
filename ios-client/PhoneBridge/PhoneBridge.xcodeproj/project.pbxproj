@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		19D70F1F427F3A1759F30F52 /* BLEClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF91A2083287FEB241C2053 /* BLEClient.swift */; };
+		2103D0AE6741D9F5E32445B5 /* KeypadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB4F5125591622CCA0E61452 /* KeypadView.swift */; };
 		5D45CBE52E11475A11DF1084 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */; };
 		7A2D787597391A9497BEBB60 /* PhoneBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FC69B04913D8A8E27C2995 /* PhoneBridgeApp.swift */; };
 		90F846ABB89AB2773CEDED31 /* L2CAPChannelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C236317586D438952965C4 /* L2CAPChannelManager.swift */; };
@@ -23,6 +24,7 @@
 		61C236317586D438952965C4 /* L2CAPChannelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L2CAPChannelManager.swift; sourceTree = "<group>"; };
 		6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		78535C7304AE0C05F922B3CD /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
+		AB4F5125591622CCA0E61452 /* KeypadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeypadView.swift; sourceTree = "<group>"; };
 		B2D884C4851BDD152DB1AF00 /* SMSDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMSDetailView.swift; sourceTree = "<group>"; };
 		B87EA7DA61CABF2D89D17CAE /* AudioStreamManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioStreamManager.swift; sourceTree = "<group>"; };
 		F34E9709AD4EB20C8676DBEA /* PhoneBridge.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -88,6 +90,7 @@
 			isa = PBXGroup;
 			children = (
 				6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */,
+				AB4F5125591622CCA0E61452 /* KeypadView.swift */,
 				B2D884C4851BDD152DB1AF00 /* SMSDetailView.swift */,
 			);
 			path = Views;
@@ -177,6 +180,7 @@
 				19D70F1F427F3A1759F30F52 /* BLEClient.swift in Sources */,
 				FA964D3F115A01A8F633AF94 /* CallManager.swift in Sources */,
 				5D45CBE52E11475A11DF1084 /* ContentView.swift in Sources */,
+				2103D0AE6741D9F5E32445B5 /* KeypadView.swift in Sources */,
 				90F846ABB89AB2773CEDED31 /* L2CAPChannelManager.swift in Sources */,
 				7A2D787597391A9497BEBB60 /* PhoneBridgeApp.swift in Sources */,
 				C640C9E3B2CB8BF6C2D29D2D /* SMSDetailView.swift in Sources */,

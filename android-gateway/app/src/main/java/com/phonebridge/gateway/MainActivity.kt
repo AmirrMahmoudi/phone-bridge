@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.CALL_PHONE,
             Manifest.permission.RECEIVE_SMS,
             Manifest.permission.READ_SMS,
+            Manifest.permission.SEND_SMS,
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.READ_CONTACTS
         )
