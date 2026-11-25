@@ -23,7 +23,7 @@ public class AudioProcessing {
     // Noise Suppression state
     private var noiseFloor: Float = 0.0
     private var noiseFloorAlpha: Float = 0.95 // smoothing factor
-    private let noiseSuppression ThresholdDB: Float = -40.0 // -40dB
+    private let noiseSuppressionThresholdDB: Float = -40.0 // -40dB
     
     // Simple VAD (Voice Activity Detection)
     private var vadThreshold: Float = 0.01

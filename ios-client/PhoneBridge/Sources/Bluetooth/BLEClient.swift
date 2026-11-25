@@ -949,5 +949,4 @@ extension BLEClient: CBPeripheralDelegate {
             }
         }
     }
-    }
 }
