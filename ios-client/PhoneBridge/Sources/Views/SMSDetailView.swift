@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// صفحه نمایش جزئیات کامل پیامک و امکان پاسخ مستقیم با سیم‌کارت اندروید
 struct SMSDetailView: View {

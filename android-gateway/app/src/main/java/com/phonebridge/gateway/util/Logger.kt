@@ -97,6 +97,10 @@ object Logger {
     fun c(message: String, category: Category = Category.SYSTEM) {
         log(message, LogLevel.CRITICAL, category)
     }
+
+    fun log(level: LogLevel, category: Category, message: String) {
+        log(message, level, category)
+    }
     
     // MARK: - Core Logging
     

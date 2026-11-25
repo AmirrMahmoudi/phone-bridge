@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import CallKit
 import AVFoundation
 
@@ -77,6 +78,28 @@ public class CallManager: NSObject, ObservableObject {
     /// متد کمکی برای گزارش تماس
     public func reportIncomingCall(uuid: UUID, handle: String, callerName: String, completion: (@escaping (Error?) -> Void) = { _ in }) {
         reportOrUpdateIncomingCall(uuid: uuid, handle: handle, callerName: callerName, completion: completion)
+    }
+
+    /// @deprecated متد دیگر استفاده نمی‌شود - تماس‌های خروجی فقط از طریق اپ Phone بومی آیفون
+    /// برقراری تماس خروجی از طریق CallKit
+    public func startOutgoingCall(handle: String) {
+        print("[CallKit] Warning: startOutgoingCall() is deprecated and unused. Use native iOS Phone app for outgoing calls.")
+        let uuid = UUID()
+        self.activeCallUUID = uuid
+        self.callerName = handle
+
+        let handleObj = CXHandle(type: .phoneNumber, value: handle)
+        let startCallAction = CXStartCallAction(call: uuid, handle: handleObj)
+        startCallAction.isVideo = false
+
+        let transaction = CXTransaction(action: startCallAction)
+        callController.request(transaction) { error in
+            if let error = error {
+                print("[CallKit] Request start outgoing call error: \(error.localizedDescription)")
+            } else {
+                print("[CallKit] Outgoing call requested: \(handle)")
+            }
+        }
     }
 
     /// بستن صفحه تماس هنگامی که تماس مستقیماً روی گوشی اندروید پاسخ داده شده است

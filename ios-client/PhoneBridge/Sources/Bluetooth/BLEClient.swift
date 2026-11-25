@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import CoreBluetooth
 import UIKit
 import UserNotifications
@@ -25,142 +26,17 @@ public class BLEClient: NSObject, ObservableObject {
     @Published public var logs: [String] = []
     @Published public var isReconnecting: Bool = false
     
-    // Connection quality monitoring
-    public enum ConnectionQuality {
-        case excellent, good, fair, poor, unknown
-        
-        var description: String {
-            switch self {
-            case .excellent: return "عالی"
-            case .good: return "خوب"
-            case .fair: return "متوسط"
-            case .poor: return "ضعیف"
-            case .unknown: return "نامشخص"
-            }
-        }
-        
-        var icon: String {
-            switch self {
-            case .excellent: return "wifi"
-            case .good: return "wifi"
-            case .fair: return "wifi.exclamationmark"
-            case .poor: return "wifi.slash"
-            case .unknown: return "questionmark"
-            }
-        }
-    }
-    
-    // Disconnect reason classification for intelligent reconnection
-    public enum DisconnectReason {
-        case userInitiated        // کاربر خودش disconnect کرده
-        case outOfRange          // دستگاه از محدوده بلوتوث خارج شده
-        case peripheralError     // خطای سمت peripheral (Android)
-        case timeout             // Timeout در ارتباط (heartbeat)
-        case connectionError     // خطای عمومی connection
-        case unknown             // دلیل نامشخص
-        
-        var shouldAutoReconnect: Bool {
-            switch self {
-            case .userInitiated:
-                return false  // کاربر disconnect کرده، auto-reconnect نکن
-            case .outOfRange, .timeout:
-                return true   // احتمالاً موقتی است، حتماً reconnect کن
-            case .peripheralError, .connectionError:
-                return true   // سعی کن reconnect با backoff
-            case .unknown:
-                return true   // برای احتیاط، reconnect کن
-            }
-        }
-        
-        var retryStrategy: ReconnectionStrategy {
-            switch self {
-            case .userInitiated:
-                return .none
-            case .outOfRange, .timeout:
-                return .aggressive  // سریع reconnect کن (1s, 2s, 4s)
-            case .peripheralError, .connectionError:
-                return .exponential // آهسته reconnect کن (2s, 4s, 8s, 16s, 30s)
-            case .unknown:
-                return .moderate    // متوسط (2s, 4s, 8s)
-            }
-        }
-        
-        var description: String {
-            switch self {
-            case .userInitiated: return "توسط کاربر قطع شد"
-            case .outOfRange: return "خارج از محدوده"
-            case .peripheralError: return "خطای دستگاه"
-            case .timeout: return "timeout ارتباط"
-            case .connectionError: return "خطای اتصال"
-            case .unknown: return "دلیل نامشخص"
-            }
-        }
-    }
-    
-    // Reconnection strategies
-    public enum ReconnectionStrategy {
-        case none                 // هیچ reconnect نکن
-        case aggressive          // [1, 2, 4, 8, 15] seconds
-        case moderate            // [2, 4, 8, 16, 30] seconds
-        case exponential         // [2, 4, 8, 16, 32, 60] seconds
-        
-        func delay(for attempt: Int) -> TimeInterval {
-            switch self {
-            case .none:
-                return 0
-            case .aggressive:
-                let delays: [TimeInterval] = [1, 2, 4, 8, 15]
-                return delays[min(attempt, delays.count - 1)]
-            case .moderate:
-                let delays: [TimeInterval] = [2, 4, 8, 16, 30]
-                return delays[min(attempt, delays.count - 1)]
-            case .exponential:
-                let delays: [TimeInterval] = [2, 4, 8, 16, 32, 60]
-                return delays[min(attempt, delays.count - 1)]
-            }
-        }
-        
-        var maxAttempts: Int {
-            switch self {
-            case .none: return 0
-            case .aggressive: return 8   // بیشتر تلاش کن
-            case .moderate: return 5
-            case .exponential: return 6
-            }
-        }
-    }
-    
-    @Published public var connectionQuality: ConnectionQuality = .unknown
-    @Published public var rssi: Int = 0
-    
     // مدیر کانال L2CAP برای انتقال صوت
     private var l2capManager: L2CAPChannelManager?
     
     // Callback برای ثبت رویدادها در ActivityLog
     public var onActivityEvent: ((String, String, String, String?, String?) -> Void)?
     
-    // Intelligent reconnection با context-aware strategy
+    // اتصال مجدد با exponential backoff
     private var reconnectAttempt: Int = 0
     private var reconnectTimer: Timer?
-    private var currentDisconnectReason: DisconnectReason = .unknown
-    private var lastDisconnectTime: Date?
-    private var userInitiatedDisconnect: Bool = false
-    
-    // Heartbeat monitoring
     private var lastHeartbeatTime: Date?
     private var heartbeatTimer: Timer?
-    
-    // Connection quality degradation tracking
-    private var poorQualityStartTime: Date?
-    private var consecutivePoorReadings: Int = 0
-    
-    // PSM retry logic
-    private var psmRetryCount = 0
-    private let maxPsmRetries = 5
-    private var psmRetryTimer: Timer?
-    
-    // RSSI monitoring
-    private var rssiTimer: Timer?
 
     override init() {
         super.init()
@@ -187,14 +63,8 @@ public class BLEClient: NSObject, ObservableObject {
         let elapsed = Date().timeIntervalSince(lastTime)
         if elapsed > 60.0 {
             log("⚠️ Heartbeat timeout detected (no DEVICE_STATUS for \(Int(elapsed))s)")
-            // علامت‌گذاری که این disconnect به دلیل timeout است
-            currentDisconnectReason = .timeout
-            userInitiatedDisconnect = false
-            
-            // قطع اتصال - reconnect خودکار در didDisconnectPeripheral انجام می‌شود
-            if let peripheral = peripheral, let central = centralManager {
-                central.cancelPeripheralConnection(peripheral)
-            }
+            // قطع اتصال و شروع reconnect
+            disconnect()
         }
     }
 
@@ -223,44 +93,8 @@ public class BLEClient: NSObject, ObservableObject {
             CBCentralManagerScanOptionAllowDuplicatesKey: false
         ])
     }
-    
-    /// تلاش برای اتصال مجدد به peripheral قبلی
-    private func tryReconnectToPreviousDevice() {
-        guard let central = centralManager, central.state == .poweredOn else { return }
-        
-        if let uuidString = UserDefaults.standard.string(forKey: "lastConnectedPeripheralUUID"),
-           let uuid = UUID(uuidString: uuidString) {
-            let peripherals = central.retrievePeripherals(withIdentifiers: [uuid])
-            if let peripheral = peripherals.first {
-                self.peripheral = peripheral
-                peripheral.delegate = self
-                
-                if peripheral.state == .connected {
-                    log("🔄 Found already connected peripheral, restoring connection...")
-                    self.isConnected = true
-                    self.deviceName = peripheral.name ?? UserDefaults.standard.string(forKey: "lastConnectedPeripheralName") ?? "Samsung Gateway"
-                    peripheral.discoverServices([BLEClient.serviceUUID])
-                } else {
-                    log("🔄 Attempting to reconnect to previous device: \(peripheral.name ?? "Unknown")")
-                    central.connect(peripheral, options: [
-                        CBConnectPeripheralOptionNotifyOnConnectionKey: true,
-                        CBConnectPeripheralOptionNotifyOnDisconnectionKey: true
-                    ])
-                }
-                return
-            }
-        }
-        
-        // اگر peripheral قبلی پیدا نشد، شروع اسکن
-        log("No previous device found, starting scan...")
-        startScanning()
-    }
 
     public func disconnect() {
-        // علامت‌گذاری که این disconnect توسط کاربر انجام شده
-        userInitiatedDisconnect = true
-        currentDisconnectReason = .userInitiated
-        
         reconnectTimer?.invalidate()
         reconnectTimer = nil
         reconnectAttempt = 0
@@ -271,79 +105,34 @@ public class BLEClient: NSObject, ObservableObject {
         // بستن کانال L2CAP در صورت قطع اتصال
         l2capManager?.disconnect()
         l2capManager = nil
-        
-        log("🔴 Disconnected by user")
     }
     
     /**
-     * شروع اتصال مجدد با intelligent strategy بر اساس disconnect reason
+     * شروع اتصال مجدد با exponential backoff
      */
-    private func scheduleReconnect(reason: DisconnectReason) {
-        currentDisconnectReason = reason
-        lastDisconnectTime = Date()
-        
-        // بررسی که آیا باید reconnect کنیم
-        guard reason.shouldAutoReconnect else {
-            log("⏸️ Auto-reconnect disabled for reason: \(reason.description)")
-            isReconnecting = false
-            return
-        }
-        
+    private func scheduleReconnect() {
         reconnectTimer?.invalidate()
         
-        let strategy = reason.retryStrategy
+        // محاسبه تاخیر: 1s, 2s, 4s, 8s, max 30s
+        let delays = [1.0, 2.0, 4.0, 8.0, 30.0]
+        let delayIndex = min(reconnectAttempt, delays.count - 1)
+        let delay = delays[delayIndex]
         
-        // بررسی max attempts
-        if reconnectAttempt >= strategy.maxAttempts {
-            log("❌ Max reconnection attempts reached (\(strategy.maxAttempts)) for \(reason.description)")
-            isReconnecting = false
-            reconnectAttempt = 0
-            
-            // نمایش نوتیفیکیشن به کاربر
-            showReconnectionFailedNotification()
-            return
-        }
-        
-        // محاسبه تاخیر بر اساس استراتژی
-        let delay = strategy.delay(for: reconnectAttempt)
-        
+        reconnectAttempt += 1
         isReconnecting = true
         
-        log("🔄 Scheduling reconnect attempt \(reconnectAttempt + 1)/\(strategy.maxAttempts) in \(Int(delay))s (Reason: \(reason.description), Strategy: \(strategy))")
+        log("Connection lost, attempting reconnect \(reconnectAttempt)/5 after \(Int(delay))s")
         
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             guard let self = self else { return }
             
-            self.reconnectAttempt += 1
-            self.log("🔄 Reconnecting (attempt \(self.reconnectAttempt)/\(strategy.maxAttempts))...")
-            
-            // برای outOfRange و timeout: سریع‌تر reconnect کن
-            if reason == .outOfRange || reason == .timeout {
-                self.tryReconnectToPreviousDevice()
-            } else {
+            if self.reconnectAttempt <= 5 {
+                self.log("🔄 Reconnecting (attempt \(self.reconnectAttempt))...")
                 self.startScanning()
-            }
-        }
-    }
-    
-    /**
-     * نمایش نوتیفیکیشن شکست reconnection
-     */
-    private func showReconnectionFailedNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "اتصال مجدد ناموفق"
-        content.body = "نتوانستیم به گوشی اندروید متصل شویم. لطفاً دستی تلاش کنید."
-        content.sound = .default
-        
-        let request = UNNotificationRequest(
-            identifier: "RECONNECTION_FAILED",
-            content: content,
-            trigger: nil
-        )
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                self.log("خطا در نمایش نوتیفیکیشن: \(error.localizedDescription)")
+            } else {
+                self.log("❌ Max reconnection attempts reached")
+                self.isReconnecting = false
+                self.reconnectAttempt = 0
             }
         }
     }
@@ -376,79 +165,30 @@ public class BLEClient: NSObject, ObservableObject {
         return l2capManager
     }
 
-    /// ارسال پیامک از طریق سیم‌کارت اندروید (با protocol جدید)
-    public func sendSMS(phoneNumber: String, message: String, completion: ((Bool, String?) -> Void)? = nil) {
-        guard !phoneNumber.isEmpty, !message.isEmpty else {
-            completion?(false, "Phone number or message is empty")
-            return
+    /// برقراری تماس خروجی از طریق سیم‌کارت اندروید
+    public func dial(phoneNumber: String) {
+        let trimmed = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        log("📞 در حال برقراری تماس خروجی با: \(trimmed)")
+        sendCommand(["cmd": "DIAL_CALL", "phoneNumber": trimmed])
+
+        // ثبت در ActivityLog
+        onActivityEvent?("phone.arrow.up.right", "تماس خروجی", trimmed, nil, nil)
+
+        // رجیستر تماس در CallKit و شروع موتور صدا
+        CallManager.shared.startOutgoingCall(handle: trimmed)
+        AudioStreamManager.shared.startAudioSession()
+        if let mgr = l2capManager {
+            AudioStreamManager.shared.startReceiving(channel: mgr)
         }
-        
-        // Validation
-        guard isValidPhoneNumber(phoneNumber) else {
-            log("❌ شماره تلفن نامعتبر است")
-            completion?(false, "Invalid phone number")
-            return
-        }
-        
-        guard message.count <= 1000 else {
-            log("❌ پیام خیلی طولانی است (حداکثر 1000 کاراکتر)")
-            completion?(false, "Message too long (max 1000 characters)")
-            return
-        }
-        
-        log("✉️ در حال ارسال پیامک به \(phoneNumber)")
-        
-        let command: [String: Any] = [
-            "cmd": "SEND_SMS",
-            "phoneNumber": phoneNumber,
-            "message": message,
-            "timestamp": Int(Date().timeIntervalSince1970)
-        ]
-        
-        sendCommand(command)
-        onActivityEvent?("paperplane.fill", "پیامک ارسال شد", "\(phoneNumber): \(message)", message, phoneNumber)
-        
-        // Note: completion will be called when SMS_SEND_RESULT is received
-        // برای سادگی، الان success می‌دهیم (می‌توان callback را ذخیره کرد)
-        completion?(true, nil)
     }
-    
-    /// شروع تماس خروجی از طریق سیم‌کارت اندروید (فیچر جدید)
-    public func initiateCall(phoneNumber: String, completion: ((Bool, String?, String?) -> Void)? = nil) {
-        guard !phoneNumber.isEmpty else {
-            completion?(false, nil, "Phone number is empty")
-            return
-        }
-        
-        // Validation
-        guard isValidPhoneNumber(phoneNumber) else {
-            log("❌ شماره تلفن نامعتبر است")
-            completion?(false, nil, "Invalid phone number")
-            return
-        }
-        
-        log("📞 در حال برقراری تماس با \(phoneNumber)")
-        
-        let command: [String: Any] = [
-            "cmd": "DIAL_CALL",
-            "phoneNumber": phoneNumber,
-            "timestamp": Int(Date().timeIntervalSince1970)
-        ]
-        
-        sendCommand(command)
-        onActivityEvent?("phone.fill", "تماس خروجی", "در حال برقراری تماس با \(phoneNumber)", "", phoneNumber)
-        
-        // Note: completion will be called when DIAL_RESULT is received
-        // برای سادگی، الان success می‌دهیم (می‌توان callback را ذخیره کرد)
-        completion?(true, nil, nil)
-    }
-    
-    /// بررسی اعتبار شماره تلفن
-    private func isValidPhoneNumber(_ phoneNumber: String) -> Bool {
-        // فرمت معتبر: 10-15 رقم، با یا بدون +
-        let phoneRegex = "^\\+?[0-9]{10,15}$"
-        let phonePredicate = NSPredicate(format: "SELF MATCHES %@", phoneRegex)
-        return phonePredicate.evaluate(with: phoneNumber)
+
+    /// ارسال پیامک از طریق سیم‌کارت اندروید
+    public func sendSMS(recipient: String, message: String) {
+        guard !recipient.isEmpty, !message.isEmpty else { return }
+        log("✉️ در حال ارسال پیامک به \(recipient)")
+        sendCommand(["cmd": "SEND_SMS", "recipient": recipient, "body": message])
+        onActivityEvent?("paperplane.fill", "پیامک ارسال شد", "\(recipient): \(message)", message, recipient)
     }
 }
 
@@ -458,7 +198,7 @@ extension BLEClient: CBCentralManagerDelegate {
         switch central.state {
         case .poweredOn:
             log("بلوتوث آیفون آماده به کار است.")
-            tryReconnectToPreviousDevice()
+            startScanning()
         case .poweredOff:
             log("بلوتوث آیفون خاموش است.")
             isConnected = false
@@ -499,49 +239,24 @@ extension BLEClient: CBCentralManagerDelegate {
         self.isConnected = true
         self.deviceName = peripheral.name ?? "Samsung Gateway"
         
-        // ذخیره peripheral UUID برای reconnection بعدی
-        UserDefaults.standard.set(peripheral.identifier.uuidString, forKey: "lastConnectedPeripheralUUID")
-        UserDefaults.standard.set(peripheral.name, forKey: "lastConnectedPeripheralName")
-        
         // ریست reconnect state
-        let wasReconnecting = reconnectAttempt > 0
-        let previousReason = currentDisconnectReason
-        
         reconnectAttempt = 0
         isReconnecting = false
         reconnectTimer?.invalidate()
         reconnectTimer = nil
-        currentDisconnectReason = .unknown
-        userInitiatedDisconnect = false
         
         // ریست heartbeat timer
         lastHeartbeatTime = Date()
         
-        // ریست poor quality tracking
-        poorQualityStartTime = nil
-        consecutivePoorReadings = 0
+        log("ارتباط با گوشی سامسونگ با موفقیت برقرار شد ✅")
         
-        // شروع RSSI monitoring
-        startRSSIMonitoring()
-        
-        if wasReconnecting {
-            log("✅ Connection successfully recovered after disconnect (Reason: \(previousReason.description))")
-        } else {
-            log("ارتباط با گوشی سامسونگ با موفقیت برقرار شد ✅")
+        if reconnectAttempt > 0 {
+            log("✅ Connection recovered after \(reconnectAttempt) attempts")
         }
         
         onActivityEvent?("antenna.radiowaves.left.and.right", "اتصال برقرار شد", "به \(self.deviceName)", nil, nil)
         peripheral.delegate = self
         peripheral.discoverServices([BLEClient.serviceUUID])
-    }
-    
-    /// شروع monitoring RSSI
-    private func startRSSIMonitoring() {
-        rssiTimer?.invalidate()
-        rssiTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            guard let self = self, let peripheral = self.peripheral, self.isConnected else { return }
-            peripheral.readRSSI()
-        }
     }
 
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
@@ -553,119 +268,11 @@ extension BLEClient: CBCentralManagerDelegate {
         l2capManager?.disconnect()
         l2capManager = nil
         
-        // توقف RSSI monitoring
-        rssiTimer?.invalidate()
-        rssiTimer = nil
-        connectionQuality = .unknown
-        rssi = 0
+        log("اتصال به سامسونگ قطع شد. تلاش برای اتصال مجدد...")
+        onActivityEvent?("antenna.radiowaves.left.and.right.slash", "اتصال قطع شد", "از \(previousName)", nil, nil)
         
-        // تشخیص دلیل disconnect
-        var disconnectReason: DisconnectReason
-        
-        if userInitiatedDisconnect {
-            disconnectReason = .userInitiated
-            userInitiatedDisconnect = false
-        } else if currentDisconnectReason == .timeout {
-            disconnectReason = .timeout
-        } else if currentDisconnectReason == .outOfRange {
-            disconnectReason = .outOfRange
-        } else if let err = error {
-            // بررسی کد خطا برای تشخیص دقیق‌تر
-            let nsError = err as NSError
-            switch nsError.code {
-            case 7:  // Connection timeout
-                disconnectReason = .timeout
-            case 6:  // Device disconnected (out of range)
-                disconnectReason = .outOfRange
-            case 10: // Peripheral connection failed
-                disconnectReason = .peripheralError
-            default:
-                disconnectReason = .connectionError
-            }
-            log("❌ Disconnect error code: \(nsError.code), domain: \(nsError.domain)")
-        } else {
-            // بررسی اینکه آیا poor quality داشتیم
-            if poorQualityStartTime != nil && consecutivePoorReadings >= 3 {
-                disconnectReason = .outOfRange
-            } else {
-                disconnectReason = .unknown
-            }
-        }
-        
-        // Reset poor quality tracking
-        poorQualityStartTime = nil
-        consecutivePoorReadings = 0
-        
-        log("🔴 Disconnected from \(previousName) (Reason: \(disconnectReason.description))")
-        onActivityEvent?("antenna.radiowaves.left.and.right.slash", "اتصال قطع شد", "از \(previousName) - \(disconnectReason.description)", nil, nil)
-        
-        // شروع اتصال مجدد با استراتژی هوشمند
-        scheduleReconnect(reason: disconnectReason)
-    }
-    
-    /// پیاده‌سازی delegate method برای RSSI
-    public func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
-        if let error = error {
-            log("خطا در خواندن RSSI: \(error.localizedDescription)")
-            return
-        }
-        
-        let rssiValue = RSSI.intValue
-        DispatchQueue.main.async {
-            self.rssi = rssiValue
-            
-            let previousQuality = self.connectionQuality
-            
-            // محاسبه کیفیت اتصال بر اساس RSSI
-            if rssiValue > -50 {
-                self.connectionQuality = .excellent
-                self.consecutivePoorReadings = 0
-                self.poorQualityStartTime = nil
-            } else if rssiValue > -60 {
-                self.connectionQuality = .good
-                self.consecutivePoorReadings = 0
-                self.poorQualityStartTime = nil
-            } else if rssiValue > -70 {
-                self.connectionQuality = .fair
-                self.consecutivePoorReadings = 0
-                self.poorQualityStartTime = nil
-            } else {
-                self.connectionQuality = .poor
-                
-                // ردیابی poor quality مداوم
-                if previousQuality == .poor {
-                    self.consecutivePoorReadings += 1
-                    
-                    // اگر برای اولین بار poor شد، زمان ثبت کن
-                    if self.poorQualityStartTime == nil {
-                        self.poorQualityStartTime = Date()
-                    }
-                } else {
-                    self.consecutivePoorReadings = 1
-                    self.poorQualityStartTime = Date()
-                }
-                
-                // هشدار برای poor quality مداوم (بیش از 20 ثانیه)
-                if let startTime = self.poorQualityStartTime {
-                    let duration = Date().timeIntervalSince(startTime)
-                    if duration > 20.0 && self.consecutivePoorReadings >= 4 {
-                        self.log("⚠️ کیفیت اتصال مداوماً ضعیف است (RSSI: \(rssiValue) dBm, \(Int(duration))s)")
-                        // علامت‌گذاری که احتمالاً داریم از محدوده خارج می‌شیم
-                        self.currentDisconnectReason = .outOfRange
-                    }
-                }
-            }
-            
-            // هشدار در صورت poor quality
-            if self.connectionQuality == .poor && self.isConnected && previousQuality != .poor {
-                self.log("⚠️ کیفیت اتصال ضعیف شد (RSSI: \(rssiValue) dBm)")
-            }
-            
-            // پیام بهبود کیفیت
-            if previousQuality == .poor && self.connectionQuality != .poor {
-                self.log("✅ کیفیت اتصال بهبود یافت (RSSI: \(rssiValue) dBm)")
-            }
-        }
+        // شروع اتصال مجدد با exponential backoff
+        scheduleReconnect()
     }
 }
 
@@ -693,33 +300,10 @@ extension BLEClient: CBPeripheralDelegate {
                 log("کانال دریافت تماس‌ها و پیامک‌ها فعال گردید ⚡️")
             } else if char.uuid == BLEClient.psmCharUUID {
                 self.psmCharacteristic = char
-                // شروع retry logic برای PSM
-                psmRetryCount = 0
-                readPSMWithRetry()
+                // خواندن مقدار PSM از اندروید
+                peripheral.readValue(for: char)
+                log("در حال خواندن PSM از سرور اندروید...")
             }
-        }
-    }
-    
-    /// تابع retry برای خواندن PSM
-    private func readPSMWithRetry() {
-        guard let char = psmCharacteristic, let peripheral = peripheral else { return }
-        
-        if psmRetryCount < maxPsmRetries {
-            peripheral.readValue(for: char)
-            psmRetryCount += 1
-            log("📡 Attempting to read PSM (attempt \(psmRetryCount)/\(maxPsmRetries))")
-            
-            // اگر بعد از 2 ثانیه PSM نیامد، دوباره بخوان
-            psmRetryTimer?.invalidate()
-            psmRetryTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-                guard let self = self else { return }
-                if self.l2capManager == nil && self.psmRetryCount < self.maxPsmRetries {
-                    self.readPSMWithRetry()
-                }
-            }
-        } else {
-            log("❌ Failed to read PSM after \(maxPsmRetries) attempts")
-            psmRetryCount = 0
         }
     }
 
@@ -751,10 +335,6 @@ extension BLEClient: CBPeripheralDelegate {
     
     /// برقراری اتصال کانال L2CAP با PSM دریافتی
     private func connectL2CAPChannel(to peripheral: CBPeripheral, psm: UInt16) {
-        // Cancel PSM retry timer
-        psmRetryTimer?.invalidate()
-        psmRetryCount = 0
-        
         l2capManager = L2CAPChannelManager()
         l2capManager?.onConnected = { [weak self] in
             self?.log("✅ L2CAP channel opened to PSM \(psm)")
@@ -778,12 +358,6 @@ extension BLEClient: CBPeripheralDelegate {
                 }
             } else {
                 self?.log("❌ Failed to connect L2CAP: \(error?.localizedDescription ?? "Unknown")")
-                // تلاش مجدد بعد از 2 ثانیه
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-                    guard let self = self, self.isConnected else { return }
-                    self.log("🔄 Retrying L2CAP connection...")
-                    self.connectL2CAPChannel(to: peripheral, psm: psm)
-                }
             }
         }
     }
@@ -797,15 +371,6 @@ extension BLEClient: CBPeripheralDelegate {
         guard let type = json["type"] as? String else { return }
 
         switch type {
-        case "L2CAP_READY":
-            if let psm = json["psm"] as? Int {
-                log("📡 L2CAP_READY event received with PSM: \(psm)")
-                // اگر هنوز L2CAP connect نشده، دوباره تلاش کن
-                if l2capManager == nil, let peripheral = peripheral {
-                    connectL2CAPChannel(to: peripheral, psm: UInt16(psm))
-                }
-            }
-        
         case "CALL_INCOMING":
             let callerNumber = json["callerNumber"] as? String ?? "ناشناس"
             let callerName = json["callerName"] as? String ?? callerNumber
@@ -840,33 +405,6 @@ extension BLEClient: CBPeripheralDelegate {
             } else {
                 log("❌ خطا در ارسال پیامک به \(recipient)")
             }
-        
-        case "SMS_SEND_RESULT":
-            // Handler جدید برای protocol جدید
-            let success = json["success"] as? Bool ?? false
-            let error = json["error"] as? String
-            
-            if success {
-                log("✅ پیامک با موفقیت ارسال شد")
-                onActivityEvent?("checkmark.circle", "پیامک ارسال شد", "پیامک با موفقیت ارسال شد", nil, nil)
-            } else {
-                log("❌ خطا در ارسال پیامک: \(error ?? "Unknown error")")
-                onActivityEvent?("xmark.circle", "خطا در ارسال پیامک", error ?? "Unknown error", nil, nil)
-            }
-        
-        case "DIAL_RESULT":
-            // Handler جدید برای تماس خروجی (فیچر جدید)
-            let success = json["success"] as? Bool ?? false
-            let callId = json["callId"] as? String
-            let error = json["error"] as? String
-            
-            if success {
-                log("✅ تماس خروجی با موفقیت برقرار شد (ID: \(callId ?? "unknown"))")
-                onActivityEvent?("phone.arrow.up.right", "تماس خروجی برقرار شد", "تماس با موفقیت شروع شد", nil, nil)
-            } else {
-                log("❌ خطا در برقراری تماس: \(error ?? "Unknown error")")
-                onActivityEvent?("phone.down", "خطا در برقراری تماس", error ?? "Unknown error", nil, nil)
-            }
 
         case "SMS_INCOMING":
             let sender = json["sender"] as? String ?? "ناشناس"
@@ -886,6 +424,7 @@ extension BLEClient: CBPeripheralDelegate {
             lastHeartbeatTime = Date()
             
             if let battery = json["batteryLevel"] as? Int {
+                DispatchQueue.main.async { self.batteryLevel = battery }
                 DispatchQueue.main.async {
                     if battery < 20 && self.batteryLevel >= 20 {
                         self.log("⚠️ هشدار: باتری گوشی دوم به کمتر از ۲۰٪ رسید!")
@@ -897,11 +436,6 @@ extension BLEClient: CBPeripheralDelegate {
             if let carrier = json["simCarrier"] as? String {
                 DispatchQueue.main.async { self.simCarrier = carrier }
             }
-        
-        case "CALL_HISTORY_STATS", "CALL_HISTORY_CHUNK", "CALL_HISTORY_COMPLETE", 
-             "CALL_HISTORY_RESPONSE", "CALL_HISTORY_ERROR":
-            // ارسال به CallHistoryManager
-            CallHistoryManager.shared.processIncomingData(json)
 
         default:
             break
@@ -948,5 +482,6 @@ extension BLEClient: CBPeripheralDelegate {
                 self.log("خطا در نمایش هشدار باتری: \(error.localizedDescription)")
             }
         }
+    }
     }
 }

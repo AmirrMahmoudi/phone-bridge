@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// صفحه شماره‌گیری برای تماس خروجی (فیچر جدید)
 struct DialerView: View {

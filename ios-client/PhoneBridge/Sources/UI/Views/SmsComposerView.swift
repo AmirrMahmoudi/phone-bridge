@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// صفحه ارسال پیامک (فیچر جدید)
 struct SmsComposerView: View {
