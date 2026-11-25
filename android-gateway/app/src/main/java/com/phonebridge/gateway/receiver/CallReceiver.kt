@@ -42,23 +42,10 @@ class CallReceiver : BroadcastReceiver() {
                 if (!number.isNullOrEmpty() && number != incomingNumber) {
                     incomingNumber = number
                     val contactName = ContactHelper.getContactName(context, number) ?: number
-                    if (currentCallId == null) {
-                        currentCallId = UUID.randomUUID().toString()
-                    }
-
                     Log.i(TAG, "Incoming GSM call ringing from: $number (Name: $contactName)")
 
-                    // ارسال شماره به سرویس پس‌زمینه
+                    // ارسال شماره به سرویس پس‌زمینه (تنها مرجع ارسال CALL_INCOMING به آیفون)
                     com.phonebridge.gateway.service.PhoneBridgeForegroundService.instance?.handleIncomingNumber(number, contactName)
-
-                    val payload = JSONObject().apply {
-                        put("type", "CALL_INCOMING")
-                        put("callId", currentCallId)
-                        put("callerNumber", number)
-                        put("callerName", contactName)
-                        put("timestamp", System.currentTimeMillis() / 1000)
-                    }
-                    BLEPeripheralServer.instance?.sendNotification(payload.toString())
                 }
             } else if (state != lastState) {
                 when (state) {
@@ -69,12 +56,6 @@ class CallReceiver : BroadcastReceiver() {
                     TelephonyManager.CALL_STATE_IDLE -> {
                         if (lastState == TelephonyManager.CALL_STATE_RINGING || lastState == TelephonyManager.CALL_STATE_OFFHOOK) {
                             Log.i(TAG, "Call finished / disconnected")
-                            val payload = JSONObject().apply {
-                                put("type", "CALL_ENDED")
-                                put("reason", "DISCONNECTED")
-                                put("callId", currentCallId ?: "")
-                            }
-                            BLEPeripheralServer.instance?.sendNotification(payload.toString())
                         }
                         incomingNumber = null
                         currentCallId = null

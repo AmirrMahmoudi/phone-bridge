@@ -132,10 +132,20 @@ class PhoneBridgeForegroundService : Service() {
     private var incomingCallerName: String? = null
     private var currentCallId: String? = null
     private var answeredFromIphone = false
+    private var outgoingFromIphone = false
+    private var lastBroadcastedNumber: String? = null
 
     fun setAnsweredFromIphone(answered: Boolean) {
         this.answeredFromIphone = answered
     }
+
+    fun isAnsweredFromIphone(): Boolean = answeredFromIphone
+
+    fun setOutgoingFromIphone(outgoing: Boolean) {
+        this.outgoingFromIphone = outgoing
+    }
+
+    fun isOutgoingFromIphone(): Boolean = outgoingFromIphone
 
     fun handleIncomingNumber(number: String, contactName: String? = null) {
         this.incomingNumber = number
@@ -144,7 +154,10 @@ class PhoneBridgeForegroundService : Service() {
         if (currentCallId == null) {
             currentCallId = UUID.randomUUID().toString()
         }
-        broadcastIncomingCall(number, name)
+        // اگر قبلاً برای همین شماره با همین callId نفرستاده‌ایم، بفرست (یا آپدیت کن اگر قبلاً ناشناس بوده)
+        if (lastBroadcastedNumber != number) {
+            broadcastIncomingCall(number, name)
+        }
     }
 
     fun handleCallStateChange(state: Int, phoneNumber: String? = null) {
@@ -158,21 +171,23 @@ class PhoneBridgeForegroundService : Service() {
                 val number = phoneNumber ?: incomingNumber
                 if (!number.isNullOrEmpty()) {
                     val name = incomingCallerName ?: com.phonebridge.gateway.util.ContactHelper.getContactName(this, number) ?: number
-                    broadcastIncomingCall(number, name)
+                    if (lastBroadcastedNumber != number) {
+                        broadcastIncomingCall(number, name)
+                    }
                 } else {
-                    // تاخیر کوتاه ۲۰۰ میلی‌ثانیه‌ای تا اینتنت حاوی شماره از CallReceiver برسد
+                    // تاخیر کوتاه ۲۵۰ میلی‌ثانیه‌ای تا اینتنت حاوی شماره از CallReceiver برسد
                     serviceScope.launch {
                         delay(250)
-                        if (lastCallState == TelephonyManager.CALL_STATE_RINGING && incomingNumber == null) {
+                        if (lastCallState == TelephonyManager.CALL_STATE_RINGING && incomingNumber == null && lastBroadcastedNumber == null) {
                             broadcastIncomingCall("ناشناس", "تماس ورودی")
                         }
                     }
                 }
             }
             TelephonyManager.CALL_STATE_OFFHOOK -> {
-                Log.i(TAG, "Call offhook / answered. Answered from iPhone: $answeredFromIphone")
-                if (!answeredFromIphone) {
-                    // اگر کاربر مستقیم از روی خود گوشی اندروید تماس را پاسخ داد، صفحه آیفون را ببند
+                Log.i(TAG, "Call offhook / answered. Answered from iPhone: $answeredFromIphone, Outgoing from iPhone: $outgoingFromIphone, lastState: $lastCallState")
+                if (lastCallState == TelephonyManager.CALL_STATE_RINGING && !answeredFromIphone) {
+                    // اگر کاربر مستقیم از روی خود گوشی اندروید تماس ورودی را پاسخ داد، صفحه آیفون را ببند
                     Log.i(TAG, "Call answered directly on Android. Notifying iPhone to dismiss ringing screen.")
                     val payload = JSONObject().apply {
                         put("type", "CALL_ANSWERED_LOCALLY")
@@ -194,13 +209,16 @@ class PhoneBridgeForegroundService : Service() {
                 incomingNumber = null
                 incomingCallerName = null
                 currentCallId = null
+                lastBroadcastedNumber = null
                 answeredFromIphone = false
+                outgoingFromIphone = false
             }
         }
         lastCallState = state
     }
 
     private fun broadcastIncomingCall(number: String, callerName: String = number) {
+        lastBroadcastedNumber = number
         val payload = JSONObject().apply {
             put("type", "CALL_INCOMING")
             put("callId", currentCallId ?: UUID.randomUUID().toString().also { currentCallId = it })

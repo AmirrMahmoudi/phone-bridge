@@ -80,10 +80,8 @@ public class CallManager: NSObject, ObservableObject {
         reportOrUpdateIncomingCall(uuid: uuid, handle: handle, callerName: callerName, completion: completion)
     }
 
-    /// @deprecated متد دیگر استفاده نمی‌شود - تماس‌های خروجی فقط از طریق اپ Phone بومی آیفون
     /// برقراری تماس خروجی از طریق CallKit
     public func startOutgoingCall(handle: String) {
-        print("[CallKit] Warning: startOutgoingCall() is deprecated and unused. Use native iOS Phone app for outgoing calls.")
         let uuid = UUID()
         self.activeCallUUID = uuid
         self.callerName = handle

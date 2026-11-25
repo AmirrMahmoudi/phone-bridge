@@ -32,18 +32,11 @@ class PhoneBridgeCallService : InCallService() {
             super.onStateChanged(call, state)
             when (state) {
                 Call.STATE_RINGING -> {
+                    // ⚠️ CALL_INCOMING فقط از onCallAdded فرستاده می‌شود — اینجا نه
+                    // این از duplicate notification جلوگیری می‌کند
                     val handle = call?.details?.handle?.schemeSpecificPart ?: "Unknown"
                     val callerName = call?.details?.callerDisplayName ?: ""
-                    Log.d(TAG, "Incoming call ringing from: $handle")
-
-                    val payload = JSONObject().apply {
-                        put("type", "CALL_INCOMING")
-                        put("callId", UUID.randomUUID().toString())
-                        put("callerNumber", handle)
-                        put("callerName", callerName)
-                        put("timestamp", System.currentTimeMillis() / 1000)
-                    }
-                    BLEPeripheralServer.instance?.sendNotification(payload.toString())
+                    Log.d(TAG, "Incoming call ringing from: $handle (notification sent by onCallAdded)")
                     
                     // به‌روزرسانی ViewModel
                     com.phonebridge.gateway.MainActivity.instance?.runOnUiThread {
@@ -64,13 +57,21 @@ class PhoneBridgeCallService : InCallService() {
                 }
 
                 Call.STATE_ACTIVE -> {
-                    Log.d(TAG, "Call is now active")
-                    // شروع استریم صوت روی L2CAP برای تماس‌های ورودی و خروجی
-                    BLEPeripheralServer.instance?.startAudioStreaming()
-                    val activePayload = JSONObject().apply {
-                        put("type", "CALL_ACTIVE")
+                    val fg = com.phonebridge.gateway.service.PhoneBridgeForegroundService.instance
+                    val shouldBridgeAudio = (fg?.isAnsweredFromIphone() == true) || (fg?.isOutgoingFromIphone() == true)
+
+                    if (shouldBridgeAudio) {
+                        Log.d(TAG, "Call is now ACTIVE (iPhone call) — starting audio streaming")
+                        BLEPeripheralServer.instance?.startAudioStreaming()
+
+                        val activePayload = JSONObject().apply {
+                            put("type", "CALL_ACTIVE")
+                        }
+                        BLEPeripheralServer.instance?.sendNotification(activePayload.toString())
+                        Log.d(TAG, "CALL_ACTIVE sent to iPhone — audio streaming started")
+                    } else {
+                        Log.d(TAG, "Call is now ACTIVE locally on Android — skipping iPhone audio bridge")
                     }
-                    BLEPeripheralServer.instance?.sendNotification(activePayload.toString())
 
                     // به‌روزرسانی وضعیت صوت
                     com.phonebridge.gateway.MainActivity.instance?.runOnUiThread {
@@ -78,7 +79,7 @@ class PhoneBridgeCallService : InCallService() {
                             val viewModelStore = activity.viewModelStore
                             val viewModel = androidx.lifecycle.ViewModelProvider(viewModelStore, androidx.lifecycle.ViewModelProvider.NewInstanceFactory())
                                 .get(com.phonebridge.gateway.viewmodel.PhoneBridgeViewModel::class.java)
-                            viewModel.setAudioStreaming(true)
+                            viewModel.setAudioStreaming(shouldBridgeAudio)
                         }
                     }
                 }
@@ -109,23 +110,15 @@ class PhoneBridgeCallService : InCallService() {
 
     override fun onCallAdded(call: Call?) {
         super.onCallAdded(call)
-        Log.d(TAG, "onCallAdded")
+        Log.d(TAG, "onCallAdded: state=${call?.state}")
         currentCall = call
         call?.registerCallback(callCallback)
         
-        // در صورتی که در همین لحظه در وضعیت زنگ خوردن باشد
-        if (call?.state == Call.STATE_RINGING) {
-            val handle = call.details?.handle?.schemeSpecificPart ?: "Unknown"
-            val callerName = call.details?.callerDisplayName ?: ""
-            val payload = JSONObject().apply {
-                put("type", "CALL_INCOMING")
-                put("callId", UUID.randomUUID().toString())
-                put("callerNumber", handle)
-                put("callerName", callerName)
-                put("timestamp", System.currentTimeMillis() / 1000)
-            }
-            BLEPeripheralServer.instance?.sendNotification(payload.toString())
-        }
+        // ⚠️ CALL_INCOMING را اینجا نمی‌فرستیم!
+        // PhoneBridgeForegroundService.broadcastIncomingCall() این کار را می‌کند
+        // و اطلاعات کامل‌تری (شماره، نام مخاطب) از ContactHelper دارد.
+        // این جلوگیری از duplicate notification می‌کند.
+        Log.d(TAG, "Call registered — CALL_INCOMING will be sent by ForegroundService or CallReceiver")
     }
 
     override fun onCallRemoved(call: Call?) {

@@ -626,6 +626,7 @@ class BLEPeripheralServer(private val context: Context) {
      */
     private fun dialCall(phoneNumber: String) {
         Log.i(TAG, "Initiating outgoing call via CallInitiator to: $phoneNumber")
+        com.phonebridge.gateway.service.PhoneBridgeForegroundService.instance?.setOutgoingFromIphone(true)
         
         callInitiator.initiateCall(phoneNumber) { success, callId, error ->
             val payload = JSONObject().apply {

@@ -23,6 +23,10 @@ public class AudioStreamManager: NSObject {
     private let sampleRate: Double = 16000
     private let frameSize: Int = 320 // 20ms at 16kHz
     private let channels: Int = 1
+
+    private var inputConverter: AVAudioConverter?
+    private var capturePCMBuffer: [Int16] = []
+    private let captureLock = NSLock()
     
     // Adaptive bitrate based on connection quality
     private var currentBitrate: Int = 20000 // Start at 20kbps
@@ -187,28 +191,38 @@ public class AudioStreamManager: NSObject {
         
         engine.attach(player)
         
-        // فرمت صوتی: 16kHz, mono, PCM 16-bit
-        let format = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: sampleRate,
-            channels: 1,
-            interleaved: true
-        )
-        
-        guard let audioFormat = format else {
-            print("[Audio] Failed to create audio format")
+        // فرمت استاندارد Float32 در 16kHz مونو برای اتصال به mainMixerNode (AVAudioEngine خودش به 48kHz تبدیل می‌کند)
+        guard let playerFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: AVAudioChannelCount(channels)) else {
+            print("[Audio] Failed to create player audio format")
             return
         }
         
         // اتصال player node به output
-        engine.connect(player, to: engine.mainMixerNode, format: audioFormat)
+        engine.connect(player, to: engine.mainMixerNode, format: playerFormat)
         
-        // نصب tap روی input برای ضبط و کدگذاری
+        // نصب tap روی input برای ضبط، تبدیل نرخ نمونه‌برداری به 16kHz Int16 و کدگذاری
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
         
-        inputNode.installTap(onBus: 0, bufferSize: AVAudioFrameCount(frameSize), format: inputFormat) { [weak self] buffer, time in
-            self?.processInputBuffer(buffer)
+        guard let targetFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: sampleRate,
+            channels: AVAudioChannelCount(channels),
+            interleaved: true
+        ) else {
+            print("[Audio] Failed to create target capture format")
+            return
+        }
+        
+        inputConverter = AVAudioConverter(from: inputFormat, to: targetFormat)
+        captureLock.lock()
+        capturePCMBuffer.removeAll()
+        captureLock.unlock()
+        
+        print("[Audio] Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount)ch -> Target: 16kHz 1ch Int16")
+        
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
+            self?.processInputBuffer(buffer, targetFormat: targetFormat)
         }
         
         // شروع engine
@@ -232,49 +246,72 @@ public class AudioStreamManager: NSObject {
         }
     }
 
-    /// پردازش بافر ورودی: تبدیل به PCM 16-bit، اعمال audio processing، کدگذاری با Opus و ارسال
-    private func processInputBuffer(_ buffer: AVAudioPCMBuffer) {
+    /// پردازش بافر ورودی: تبدیل به 16kHz Int16، فریم‌بندی دقیق 320 تایی، کدگذاری با Opus و ارسال
+    private func processInputBuffer(_ buffer: AVAudioPCMBuffer, targetFormat: AVAudioFormat) {
         guard !isMuted else { return }
-        guard let encoder = opusEncoder else { return }
+        guard let encoder = opusEncoder, let converter = inputConverter else { return }
         
-        // تبدیل به PCM 16-bit در صورت نیاز
-        guard let int16Buffer = convertToInt16(buffer: buffer) else {
+        let ratio = targetFormat.sampleRate / buffer.format.sampleRate
+        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
+        guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }
+        
+        var error: NSError?
+        var inputConsumed = false
+        let status = converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
+            if inputConsumed {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            inputConsumed = true
+            outStatus.pointee = .haveData
+            return buffer
+        }
+        
+        if status == .error || error != nil {
             return
         }
         
-        // تبدیل به Float array برای processing
-        var floatBuffer = int16ToFloat(int16Buffer)
+        let convertedCount = Int(convertedBuffer.frameLength)
+        guard convertedCount > 0, let int16Ptr = convertedBuffer.int16ChannelData?[0] else { return }
         
-        // اعمال audio processing (Echo Cancellation + Noise Suppression)
-        if let processor = audioProcessor {
-            // استفاده از reference signal برای echo cancellation
-            let reference = referenceAudioBuffer.isEmpty ? nil : referenceAudioBuffer
-            processor.processAudio(inputBuffer: &floatBuffer, referenceSignal: reference)
+        captureLock.lock()
+        capturePCMBuffer.append(contentsOf: UnsafeBufferPointer(start: int16Ptr, count: convertedCount))
+        
+        while capturePCMBuffer.count >= frameSize {
+            let frameSamples = Array(capturePCMBuffer.prefix(frameSize))
+            capturePCMBuffer.removeFirst(frameSize)
+            captureLock.unlock()
             
-            // Log stats هر 50 فریم (یک بار در ثانیه)
-            if Int.random(in: 0..<50) == 0 {
-                let stats = processor.getStats()
-                if stats.isVoiceActive {
-                    print("[Audio] 🎤 Voice detected - Noise: \(String(format: "%.1f", stats.noiseFloorDB))dB, Signal: \(String(format: "%.1f", stats.averageEnergyDB))dB")
-                }
+            // تبدیل به Float array برای processing
+            var floatBuffer = frameSamples.map { Float($0) / 32768.0 }
+            
+            // اعمال audio processing (Echo Cancellation + Noise Suppression)
+            if let processor = audioProcessor {
+                let reference = referenceAudioBuffer.isEmpty ? nil : referenceAudioBuffer
+                processor.processAudio(inputBuffer: &floatBuffer, referenceSignal: reference)
             }
+            
+            // تبدیل برگشت به Int16
+            let processedSamples: [Int16] = floatBuffer.map {
+                let clamped = max(-1.0, min(1.0, $0))
+                return Int16(clamped * 32767.0)
+            }
+            
+            // کدگذاری با Opus
+            var opusPacket = [UInt8](repeating: 0, count: 1024)
+            let encodedBytes: Int32 = processedSamples.withUnsafeBufferPointer { ptr in
+                guard let base = ptr.baseAddress else { return 0 }
+                return opus_encode(encoder, base, Int32(frameSize), &opusPacket, Int32(opusPacket.count))
+            }
+            
+            if encodedBytes > 0 {
+                let encodedData = Data(bytes: opusPacket, count: Int(encodedBytes))
+                sendAudioPacket(encodedData)
+            }
+            
+            captureLock.lock()
         }
-        
-        // تبدیل برگشت به Int16
-        let processedInt16 = floatToInt16(floatBuffer)
-        
-        // کدگذاری با Opus
-        var opusPacket = [UInt8](repeating: 0, count: 1024)
-        let encodedBytes: Int32 = processedInt16.withUnsafeBytes { rawPcmPtr in
-            guard let pcmPtr = rawPcmPtr.bindMemory(to: Int16.self).baseAddress else { return 0 }
-            return opus_encode(encoder, pcmPtr, Int32(frameSize), &opusPacket, Int32(opusPacket.count))
-        }
-        
-        if encodedBytes > 0 {
-            let encodedData = Data(bytes: opusPacket, count: Int(encodedBytes))
-            // ارسال از طریق L2CAP
-            sendAudioPacket(encodedData)
-        }
+        captureLock.unlock()
     }
     
     /// تبدیل Int16 Data به Float Array
@@ -415,27 +452,22 @@ public class AudioStreamManager: NSObject {
         }
     }
 
-    /// ساخت AVAudioPCMBuffer از داده PCM
+    /// ساخت AVAudioPCMBuffer (Float32 استاندارد 16kHz مونو) از داده PCM Int16
     private func createPCMBuffer(from data: Data, frameCount: Int) -> AVAudioPCMBuffer? {
-        let format = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: sampleRate,
-            channels: 1,
-            interleaved: true
-        )
-        
-        guard let audioFormat = format,
+        guard let audioFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: AVAudioChannelCount(channels)),
               let buffer = AVAudioPCMBuffer(pcmFormat: audioFormat, frameCapacity: AVAudioFrameCount(frameCount)) else {
             return nil
         }
         
         buffer.frameLength = AVAudioFrameCount(frameCount)
         
-        // کپی داده به بافر
-        if let channelData = buffer.int16ChannelData {
+        if let channelData = buffer.floatChannelData {
             data.withUnsafeBytes { rawPtr in
                 let int16Ptr = rawPtr.bindMemory(to: Int16.self)
-                channelData[0].update(from: int16Ptr.baseAddress!, count: frameCount)
+                let dst = channelData[0]
+                for i in 0..<frameCount {
+                    dst[i] = Float(int16Ptr[i]) / 32768.0
+                }
             }
         }
         
@@ -470,6 +502,10 @@ public class AudioStreamManager: NSObject {
         receiveBuffer = Data()
         audioProcessor = nil
         referenceAudioBuffer = []
+        inputConverter = nil
+        captureLock.lock()
+        capturePCMBuffer.removeAll()
+        captureLock.unlock()
         
         let audioSession = AVAudioSession.sharedInstance()
         do {

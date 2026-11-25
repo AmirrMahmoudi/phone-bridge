@@ -9,6 +9,7 @@ public class L2CAPChannelManager: NSObject {
     private var inputStream: InputStream?
     private var outputStream: OutputStream?
     private var isConnected = false
+    private let writeLock = NSLock()
     
     public var onConnected: (() -> Void)?
     public var onDisconnected: (() -> Void)?
@@ -195,8 +196,10 @@ public class L2CAPChannelManager: NSObject {
     
     /// ارسال داده از طریق کانال L2CAP
     public func send(data: Data) {
+        writeLock.lock()
+        defer { writeLock.unlock() }
+        
         guard isConnected, let outputStream = outputStream else {
-            print("⚠️ [L2CAP] Cannot send data: not connected")
             return
         }
         
@@ -205,8 +208,6 @@ public class L2CAPChannelManager: NSObject {
                 let bytesWritten = outputStream.write(baseAddress, maxLength: buffer.count)
                 if bytesWritten < 0 {
                     print("❌ [L2CAP] Error writing to output stream")
-                } else {
-                    print("📤 [L2CAP] Sent \(bytesWritten) bytes")
                 }
             }
         }

@@ -467,10 +467,11 @@ extension BLEClient: CBPeripheralDelegate {
             }
 
         case "CALL_ANSWERED_LOCALLY":
-            let callUUID = UUID(uuidString: json["callId"] as? String ?? "") ?? CallManager.shared.activeCallUUID ?? UUID()
-            log("تماس مستقیماً از روی گوشی اندروید پاسخ داده شد.")
-            CallManager.shared.dismissCall(uuid: callUUID)
-            onActivityEvent?("phone.bubble.left", "پاسخ روی اندروید", "مکالمه روی گوشی دوم ادامه دارد", nil, nil)
+            if let activeUUID = CallManager.shared.activeCallUUID {
+                log("تماس مستقیماً از روی گوشی اندروید پاسخ داده شد.")
+                CallManager.shared.dismissCall(uuid: activeUUID)
+                onActivityEvent?("phone.bubble.left", "پاسخ روی اندروید", "مکالمه روی گوشی دوم ادامه دارد", nil, nil)
+            }
 
         case "SMS_SENT_STATUS":
             let status = json["status"] as? String ?? ""
