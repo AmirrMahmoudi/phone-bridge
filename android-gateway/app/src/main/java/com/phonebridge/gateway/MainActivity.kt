@@ -1,6 +1,7 @@
 package com.phonebridge.gateway
 
 import android.Manifest
+import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -58,8 +59,20 @@ class MainActivity : ComponentActivity() {
         }
 
         checkAndRequestPermissions()
+        requestDefaultDialerRole()
         checkBatteryOptimization()
         startDeviceStatusUpdates()
+    }
+
+    private fun requestDefaultDialerRole() {
+        val roleManager = getSystemService(RoleManager::class.java) ?: return
+        if (roleManager.isRoleAvailable(RoleManager.ROLE_DIALER) &&
+            !roleManager.isRoleHeld(RoleManager.ROLE_DIALER)
+        ) {
+            val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
+            @Suppress("DEPRECATION")
+            startActivityForResult(intent, 102)
+        }
     }
 
     private fun checkAndRequestPermissions() {
