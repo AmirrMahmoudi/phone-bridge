@@ -19,12 +19,37 @@ public class BLEClient: NSObject, ObservableObject {
     public static let eventCharUUID = CBUUID(string: "0000A003-0000-1000-8000-00805F9B34FB")
     public static let psmCharUUID = CBUUID(string: "0000A004-0000-1000-8000-00805F9B34FB")
 
+    public enum ConnectionQuality {
+        case excellent, good, fair, poor, unknown
+
+        public var icon: String {
+            switch self {
+            case .excellent, .good: return "wifi"
+            case .fair: return "wifi.exclamationmark"
+            case .poor: return "wifi.slash"
+            case .unknown: return "questionmark.circle"
+            }
+        }
+
+        public var description: String {
+            switch self {
+            case .excellent: return "عالی"
+            case .good: return "خوب"
+            case .fair: return "متوسط"
+            case .poor: return "ضعیف"
+            case .unknown: return "نامشخص"
+            }
+        }
+    }
+
     @Published public var isConnected: Bool = false
     @Published public var deviceName: String = "قطع ارتباط"
     @Published public var batteryLevel: Int = 0
     @Published public var simCarrier: String = "-"
     @Published public var logs: [String] = []
     @Published public var isReconnecting: Bool = false
+    @Published public var connectionQuality: ConnectionQuality = .unknown
+    @Published public var rssi: Int = 0
     
     // مدیر کانال L2CAP برای انتقال صوت
     private var l2capManager: L2CAPChannelManager?
@@ -189,6 +214,37 @@ public class BLEClient: NSObject, ObservableObject {
         log("✉️ در حال ارسال پیامک به \(recipient)")
         sendCommand(["cmd": "SEND_SMS", "recipient": recipient, "body": message])
         onActivityEvent?("paperplane.fill", "پیامک ارسال شد", "\(recipient): \(message)", message, recipient)
+    }
+
+    /// ارسال پیامک با شماره و callback نتیجه
+    public func sendSMS(phoneNumber: String, message: String, completion: ((Bool, String?) -> Void)? = nil) {
+        guard !phoneNumber.isEmpty, !message.isEmpty else {
+            completion?(false, "شماره یا متن پیامک خالی است")
+            return
+        }
+        guard isConnected else {
+            completion?(false, "اتصال بلوتوث برقرار نیست")
+            return
+        }
+        sendSMS(recipient: phoneNumber, message: message)
+        completion?(true, nil)
+    }
+
+    /// برقراری تماس خروجی از طریق سیم‌کارت اندروید
+    public func initiateCall(phoneNumber: String, completion: @escaping (Bool, String?, String?) -> Void) {
+        guard !phoneNumber.isEmpty else {
+            completion(false, nil, "شماره تلفن نامعتبر است")
+            return
+        }
+        guard isConnected else {
+            completion(false, nil, "اتصال بلوتوث برقرار نیست")
+            return
+        }
+        let callId = "call_\(Int(Date().timeIntervalSince1970 * 1000))"
+        log("📞 در حال برقراری تماس با \(phoneNumber)")
+        sendCommand(["cmd": "DIAL_CALL", "phoneNumber": phoneNumber, "callId": callId])
+        onActivityEvent?("phone.fill.arrow.up.right", "تماس خروجی", phoneNumber, nil, phoneNumber)
+        completion(true, callId, nil)
     }
 }
 
