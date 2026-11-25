@@ -211,12 +211,12 @@ public class BLEClient: NSObject, ObservableObject {
         // ثبت در ActivityLog
         onActivityEvent?("phone.arrow.up.right", "تماس خروجی", trimmed, nil, nil)
 
-        // رجیستر تماس در CallKit و شروع موتور صدا
+        // رجیستر تماس در CallKit
         CallManager.shared.startOutgoingCall(handle: trimmed)
-        AudioStreamManager.shared.startAudioSession()
-        if let mgr = l2capManager {
-            AudioStreamManager.shared.startReceiving(channel: mgr)
-        }
+        
+        // ✅ FIX: AudioSession را الان شروع نکن - منتظر CALL_ACTIVE باش
+        // AudioSession زمانی شروع می‌شود که Android تماس را برقرار کند و CALL_ACTIVE بفرستد
+        // این جلوی timeout و هدر رفت منابع را می‌گیرد
     }
 
     /// ارسال پیامک از طریق سیم‌کارت اندروید

@@ -58,19 +58,30 @@ class PhoneBridgeCallService : InCallService() {
 
                 Call.STATE_ACTIVE -> {
                     val fg = com.phonebridge.gateway.service.PhoneBridgeForegroundService.instance
-                    val shouldBridgeAudio = (fg?.isAnsweredFromIphone() == true) || (fg?.isOutgoingFromIphone() == true)
+                    
+                    // ✅ FIX: همیشه audio bridge را شروع کن اگر iPhone متصل است (Option B - مشابه iTell)
+                    // کاربر می‌تواند انتخاب کند کجا صحبت کند (Android یا iPhone)
+                    val hasConnectedDevices = BLEPeripheralServer.instance?.hasConnectedDevices() == true
+                    val shouldBridgeAudio = hasConnectedDevices
+                    
+                    val answeredOn = when {
+                        fg?.isAnsweredFromIphone() == true -> "iPhone"
+                        fg?.isOutgoingFromIphone() == true -> "iPhone (outgoing)"
+                        else -> "Android"
+                    }
 
                     if (shouldBridgeAudio) {
-                        Log.d(TAG, "Call is now ACTIVE (iPhone call) — starting audio streaming")
+                        Log.d(TAG, "Call is now ACTIVE (answered on: $answeredOn) — starting audio bridge to iPhone")
                         BLEPeripheralServer.instance?.startAudioStreaming()
 
                         val activePayload = JSONObject().apply {
                             put("type", "CALL_ACTIVE")
+                            put("answeredOn", answeredOn)
                         }
                         BLEPeripheralServer.instance?.sendNotification(activePayload.toString())
                         Log.d(TAG, "CALL_ACTIVE sent to iPhone — audio streaming started")
                     } else {
-                        Log.d(TAG, "Call is now ACTIVE locally on Android — skipping iPhone audio bridge")
+                        Log.d(TAG, "Call is now ACTIVE but no iPhone connected — skipping audio bridge")
                     }
 
                     // به‌روزرسانی وضعیت صوت

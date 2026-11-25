@@ -119,17 +119,15 @@ class AudioBridgeManager(private val context: Context) {
         opusDecoder = OpusDecoder(SAMPLE_RATE, CHANNELS)
 
         // راه‌اندازی AudioRecord برای ضبط صدا
-        // ترتیب منابع: VOICE_DOWNLINK (صدای خط مخابراتی) → VOICE_CALL → VOICE_COMMUNICATION (میکروفون)
+        // ✅ FIX: تغییر ترتیب برای phone bridge - باید میکروفون capture شود نه فقط downlink
+        // VOICE_COMMUNICATION: بهترین گزینه برای VoIP - میکروفون با echo cancellation built-in
         val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG_IN, AUDIO_FORMAT)
         val bufferSize = maxOf(minBufferSize, FRAME_SIZE * 2 * 4)
 
         val sourcesToTry = arrayOf(
-            MediaRecorder.AudioSource.VOICE_DOWNLINK,  // ۱. صدای دریافتی از خط مخابراتی (Android 10+)
-            MediaRecorder.AudioSource.VOICE_CALL,       // ۲. کل صدای تماس (نیاز به دسترسی سیستمی)
-            MediaRecorder.AudioSource.VOICE_UPLINK,     // ۳. صدای ارسالی به خط مخابراتی
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION, // ۴. میکروفون با echo cancellation
-            MediaRecorder.AudioSource.MIC,              // ۵. میکروفون خام
-            MediaRecorder.AudioSource.VOICE_RECOGNITION // ۶. آخرین گزینه
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION, // ✅ اولویت اول: میکروفون + echo cancellation
+            MediaRecorder.AudioSource.MIC,                 // ✅ Fallback: میکروفون خام
+            MediaRecorder.AudioSource.DEFAULT              // ✅ آخرین گزینه
         )
 
         for (source in sourcesToTry) {

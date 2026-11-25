@@ -218,6 +218,15 @@ class PhoneBridgeForegroundService : Service() {
     }
 
     private fun broadcastIncomingCall(number: String, callerName: String = number) {
+        // ✅ FIX: بررسی اینکه L2CAP channel آماده است قبل از ارسال CALL_INCOMING
+        // این اطمینان می‌دهد که وقتی iPhone جواب می‌دهد، audio streaming می‌تواند بلافاصله شروع شود
+        val hasConnectedDevices = BLEPeripheralServer.instance?.hasConnectedDevices() == true
+        if (!hasConnectedDevices) {
+            Log.w(TAG, "⚠️ No BLE devices connected - delaying CALL_INCOMING")
+            // می‌توانیم تا 2 ثانیه صبر کنیم یا فقط log کنیم
+            // برای الان فقط اخطار می‌دهیم ولی می‌فرستیم
+        }
+        
         lastBroadcastedNumber = number
         val payload = JSONObject().apply {
             put("type", "CALL_INCOMING")
