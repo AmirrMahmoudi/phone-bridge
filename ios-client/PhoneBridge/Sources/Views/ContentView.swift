@@ -34,37 +34,57 @@ struct ContentView: View {
     @State private var showSettings = false
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // کارت وضعیت اتصال در بالای صفحه
-                ConnectionStatusCard()
-                    .padding()
-                
-                // نمایش وضعیت تماس فعال در صورت وجود
-                if callManager.activeCallUUID != nil {
-                    ActiveCallIndicator()
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
+        TabView {
+            NavigationStack {
+                VStack(spacing: 0) {
+                    // کارت وضعیت اتصال در بالای صفحه
+                    ConnectionStatusCard()
+                        .padding()
+                    
+                    // نمایش وضعیت تماس فعال در صورت وجود
+                    if callManager.activeCallUUID != nil {
+                        ActiveCallIndicator()
+                            .padding(.horizontal)
+                            .padding(.bottom, 8)
+                    }
+                    
+                    // لیست رویدادها
+                    ActivityFeed(activityLog: activityLog)
                 }
-                
-                // لیست رویدادها
-                ActivityFeed(activityLog: activityLog)
-            }
-            .navigationTitle("PhoneBridge")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showSettings = true }) {
-                        Image(systemName: "gearshape")
+                .navigationTitle("PhoneBridge")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: { showSettings = true }) {
+                            Image(systemName: "gearshape")
+                        }
                     }
                 }
+                .sheet(isPresented: $showSettings) {
+                    SettingsSheet()
+                }
+                .onAppear {
+                    setupActivityLogging()
+                }
             }
-            .sheet(isPresented: $showSettings) {
-                SettingsSheet()
+            .tabItem {
+                Label("وضعیت", systemImage: "antenna.radiowaves.left.and.right")
             }
-            .onAppear {
-                setupActivityLogging()
-            }
+
+            DialerView()
+                .tabItem {
+                    Label("شماره‌گیر", systemImage: "phone.fill")
+                }
+
+            SmsComposerView()
+                .tabItem {
+                    Label("پیامک", systemImage: "message.fill")
+                }
+
+            CallHistoryView()
+                .tabItem {
+                    Label("تاریخچه", systemImage: "clock.fill")
+                }
         }
     }
     
