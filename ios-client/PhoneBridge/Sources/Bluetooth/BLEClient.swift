@@ -113,6 +113,17 @@ public class BLEClient: NSObject, ObservableObject {
     public func startScanning() {
         setupBluetooth()
         guard let central = centralManager, central.state == .poweredOn else { return }
+
+        // بررسی دستگاه‌های از قبل متصل‌شده در سیستم‌عامل
+        let connectedPeripherals = central.retrieveConnectedPeripherals(withServices: [BLEClient.serviceUUID])
+        if let existing = connectedPeripherals.first {
+            log("دستگاه اندروید از قبل متصل پیدا شد: \(existing.name ?? "Unknown")")
+            self.peripheral = existing
+            existing.delegate = self
+            central.connect(existing, options: nil)
+            return
+        }
+
         log("در حال جستجوی دستگاه اندروید...")
         central.scanForPeripherals(withServices: [BLEClient.serviceUUID], options: [
             CBCentralManagerScanOptionAllowDuplicatesKey: false
