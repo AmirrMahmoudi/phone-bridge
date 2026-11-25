@@ -36,7 +36,7 @@ public class PerformanceMonitor {
     @Published public var missedCallsCount: Int = 0
     @Published public var averageCallDuration: TimeInterval = 0
     
-    private let monitorTimer: Timer
+    private var monitorTimer: Timer?
     
     // MARK: - Initialization
     
