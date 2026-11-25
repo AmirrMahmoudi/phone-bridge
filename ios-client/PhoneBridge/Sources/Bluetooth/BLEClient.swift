@@ -483,5 +483,4 @@ extension BLEClient: CBPeripheralDelegate {
             }
         }
     }
-    }
 }
