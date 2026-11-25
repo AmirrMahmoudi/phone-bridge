@@ -6,8 +6,6 @@ import android.content.pm.PackageManager
 import android.telephony.SmsManager
 import androidx.core.content.ContextCompat
 import com.phonebridge.gateway.util.Logger
-import com.phonebridge.gateway.util.LogCategory
-import com.phonebridge.gateway.util.LogLevel
 import com.phonebridge.gateway.util.PhoneNumberValidator
 import com.phonebridge.gateway.util.RateLimiter
 
@@ -36,7 +34,7 @@ class SmsSender(private val context: Context) {
         val normalizedNumber = PhoneNumberValidator.normalize(phoneNumber)
         if (!PhoneNumberValidator.isValid(normalizedNumber)) {
             val error = "Invalid phone number format"
-            Logger.log(LogLevel.WARNING, LogCategory.SMS, "SMS send failed: $error")
+            Logger.log(Logger.LogLevel.WARNING, Logger.Category.SMS, "SMS send failed: $error")
             callback(false, error)
             return
         }
@@ -44,14 +42,14 @@ class SmsSender(private val context: Context) {
         // Step 2: Validation - Message
         if (message.isBlank()) {
             val error = "Message cannot be empty"
-            Logger.log(LogLevel.WARNING, LogCategory.SMS, "SMS send failed: $error")
+            Logger.log(Logger.LogLevel.WARNING, Logger.Category.SMS, "SMS send failed: $error")
             callback(false, error)
             return
         }
         
         if (message.length > MAX_MESSAGE_LENGTH) {
             val error = "Message too long (max $MAX_MESSAGE_LENGTH characters)"
-            Logger.log(LogLevel.WARNING, LogCategory.SMS, "SMS send failed: $error")
+            Logger.log(Logger.LogLevel.WARNING, Logger.Category.SMS, "SMS send failed: $error")
             callback(false, error)
             return
         }
@@ -59,7 +57,7 @@ class SmsSender(private val context: Context) {
         // Step 3: Rate Limiting
         if (!rateLimiter.allowAction()) {
             val error = "Rate limit exceeded (10 SMS/min)"
-            Logger.log(LogLevel.WARNING, LogCategory.SMS, "SMS send failed: $error")
+            Logger.log(Logger.LogLevel.WARNING, Logger.Category.SMS, "SMS send failed: $error")
             callback(false, error)
             return
         }
@@ -67,7 +65,7 @@ class SmsSender(private val context: Context) {
         // Step 4: Permission Check
         if (!hasSmsPermission()) {
             val error = "SMS permission not granted"
-            Logger.log(LogLevel.ERROR, LogCategory.SMS, "SMS send failed: $error")
+            Logger.log(Logger.LogLevel.ERROR, Logger.Category.SMS, "SMS send failed: $error")
             callback(false, error)
             return
         }
@@ -83,7 +81,7 @@ class SmsSender(private val context: Context) {
             }
         } catch (e: Exception) {
             val error = "SMS send exception: ${e.message}"
-            Logger.log(LogLevel.ERROR, LogCategory.SMS, error)
+            Logger.log(Logger.LogLevel.ERROR, Logger.Category.SMS, error)
             callback(false, error)
         }
     }
@@ -102,8 +100,8 @@ class SmsSender(private val context: Context) {
             )
             
             Logger.log(
-                LogLevel.INFO,
-                LogCategory.SMS,
+                Logger.LogLevel.INFO,
+                Logger.Category.SMS,
                 "SMS sent to $phoneNumber (${message.length} chars)"
             )
             
@@ -111,8 +109,8 @@ class SmsSender(private val context: Context) {
             
         } catch (e: Exception) {
             Logger.log(
-                LogLevel.ERROR,
-                LogCategory.SMS,
+                Logger.LogLevel.ERROR,
+                Logger.Category.SMS,
                 "Failed to send SMS: ${e.message}"
             )
             callback(false, e.message)
@@ -127,8 +125,8 @@ class SmsSender(private val context: Context) {
             val parts = smsManager.divideMessage(message)
             
             Logger.log(
-                LogLevel.INFO,
-                LogCategory.SMS,
+                Logger.LogLevel.INFO,
+                Logger.Category.SMS,
                 "Sending multi-part SMS to $phoneNumber (${parts.size} parts, ${message.length} chars)"
             )
             
@@ -141,8 +139,8 @@ class SmsSender(private val context: Context) {
             )
             
             Logger.log(
-                LogLevel.INFO,
-                LogCategory.SMS,
+                Logger.LogLevel.INFO,
+                Logger.Category.SMS,
                 "Multi-part SMS sent successfully"
             )
             
@@ -150,8 +148,8 @@ class SmsSender(private val context: Context) {
             
         } catch (e: Exception) {
             Logger.log(
-                LogLevel.ERROR,
-                LogCategory.SMS,
+                Logger.LogLevel.ERROR,
+                Logger.Category.SMS,
                 "Failed to send multi-part SMS: ${e.message}"
             )
             callback(false, e.message)

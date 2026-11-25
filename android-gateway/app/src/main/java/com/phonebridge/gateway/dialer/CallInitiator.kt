@@ -8,8 +8,6 @@ import android.net.Uri
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import com.phonebridge.gateway.util.Logger
-import com.phonebridge.gateway.util.LogCategory
-import com.phonebridge.gateway.util.LogLevel
 import com.phonebridge.gateway.util.PhoneNumberValidator
 import com.phonebridge.gateway.util.RateLimiter
 
@@ -31,7 +29,7 @@ class CallInitiator(private val context: Context) {
         val normalizedNumber = PhoneNumberValidator.normalize(phoneNumber)
         if (!PhoneNumberValidator.isValid(normalizedNumber)) {
             val error = "Invalid phone number format"
-            Logger.log(LogLevel.WARNING, LogCategory.CALL, "Call initiation failed: $error")
+            Logger.log(Logger.LogLevel.WARNING, Logger.Category.CALL, "Call initiation failed: $error")
             callback(false, null, error)
             return
         }
@@ -39,7 +37,7 @@ class CallInitiator(private val context: Context) {
         // Step 2: Rate Limiting
         if (!rateLimiter.allowAction()) {
             val error = "Rate limit exceeded (5 calls/min)"
-            Logger.log(LogLevel.WARNING, LogCategory.CALL, "Call initiation failed: $error")
+            Logger.log(Logger.LogLevel.WARNING, Logger.Category.CALL, "Call initiation failed: $error")
             callback(false, null, error)
             return
         }
@@ -47,7 +45,7 @@ class CallInitiator(private val context: Context) {
         // Step 3: Permission Check
         if (!hasCallPermission()) {
             val error = "CALL_PHONE permission not granted"
-            Logger.log(LogLevel.ERROR, LogCategory.CALL, "Call initiation failed: $error")
+            Logger.log(Logger.LogLevel.ERROR, Logger.Category.CALL, "Call initiation failed: $error")
             callback(false, null, error)
             return
         }
@@ -55,7 +53,7 @@ class CallInitiator(private val context: Context) {
         // Step 4: SIM Check
         if (!isSimAvailable()) {
             val error = "SIM card not available"
-            Logger.log(LogLevel.ERROR, LogCategory.CALL, "Call initiation failed: $error")
+            Logger.log(Logger.LogLevel.ERROR, Logger.Category.CALL, "Call initiation failed: $error")
             callback(false, null, error)
             return
         }
@@ -68,8 +66,8 @@ class CallInitiator(private val context: Context) {
             val callId = "call_${System.currentTimeMillis()}"
             
             Logger.log(
-                LogLevel.INFO,
-                LogCategory.CALL,
+                Logger.LogLevel.INFO,
+                Logger.Category.CALL,
                 "Call initiated to $normalizedNumber (ID: $callId)"
             )
             
@@ -77,11 +75,11 @@ class CallInitiator(private val context: Context) {
             
         } catch (e: SecurityException) {
             val error = "Security exception: ${e.message}"
-            Logger.log(LogLevel.ERROR, LogCategory.CALL, error)
+            Logger.log(Logger.LogLevel.ERROR, Logger.Category.CALL, error)
             callback(false, null, error)
         } catch (e: Exception) {
             val error = "Call exception: ${e.message}"
-            Logger.log(LogLevel.ERROR, LogCategory.CALL, error)
+            Logger.log(Logger.LogLevel.ERROR, Logger.Category.CALL, error)
             callback(false, null, error)
         }
     }
