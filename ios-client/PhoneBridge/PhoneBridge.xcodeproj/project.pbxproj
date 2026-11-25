@@ -8,25 +8,39 @@
 
 /* Begin PBXBuildFile section */
 		19D70F1F427F3A1759F30F52 /* BLEClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF91A2083287FEB241C2053 /* BLEClient.swift */; };
-		2103D0AE6741D9F5E32445B5 /* KeypadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB4F5125591622CCA0E61452 /* KeypadView.swift */; };
+		2A85AF2E33F5EC275253A1C6 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB54FC3738B1E3368FA1FDBF /* Logger.swift */; };
+		415E01011062B12C09E7A087 /* CallHistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA361F309119DFAE9A54FC18 /* CallHistoryManager.swift */; };
 		5D45CBE52E11475A11DF1084 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */; };
+		75F3577613F779CF9FE55F5B /* DialerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3CA40B39F2D13C01B90FBDF /* DialerView.swift */; };
 		7A2D787597391A9497BEBB60 /* PhoneBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FC69B04913D8A8E27C2995 /* PhoneBridgeApp.swift */; };
+		81F4E65C2A15A92EC5AA0250 /* CallHistoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5380BE09DE6717FF09DBCF7 /* CallHistoryModels.swift */; };
+		828E8F9AAC5FCA01772EFF27 /* AudioProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6EAFED9BC8109A7559856C /* AudioProcessing.swift */; };
 		90F846ABB89AB2773CEDED31 /* L2CAPChannelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C236317586D438952965C4 /* L2CAPChannelManager.swift */; };
+		A0DB1B951EC3A0E18924D4F5 /* SmsComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF52B61F31B053E7B685B597 /* SmsComposerView.swift */; };
 		AC07A2C39479A67D238C5EC9 /* YbridOpus in Frameworks */ = {isa = PBXBuildFile; productRef = 7BC6BD8950FF3236DF3D2EE5 /* YbridOpus */; };
+		BA3BDFE03FD113A83D375CF9 /* PerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05B4847784CF79FDC46DBF3 /* PerformanceMonitor.swift */; };
 		C640C9E3B2CB8BF6C2D29D2D /* SMSDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D884C4851BDD152DB1AF00 /* SMSDetailView.swift */; };
+		D5FC7D347132FFA4FF8D20D0 /* CallHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D26B3586EFBCC5FFB94C819 /* CallHistoryView.swift */; };
 		EED5547C928A8BDB0D600252 /* AudioStreamManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B87EA7DA61CABF2D89D17CAE /* AudioStreamManager.swift */; };
 		FA964D3F115A01A8F633AF94 /* CallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78535C7304AE0C05F922B3CD /* CallManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0D26B3586EFBCC5FFB94C819 /* CallHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallHistoryView.swift; sourceTree = "<group>"; };
 		0EF91A2083287FEB241C2053 /* BLEClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BLEClient.swift; sourceTree = "<group>"; };
+		1D6EAFED9BC8109A7559856C /* AudioProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioProcessing.swift; sourceTree = "<group>"; };
 		36FC69B04913D8A8E27C2995 /* PhoneBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneBridgeApp.swift; sourceTree = "<group>"; };
 		61C236317586D438952965C4 /* L2CAPChannelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L2CAPChannelManager.swift; sourceTree = "<group>"; };
 		6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		78535C7304AE0C05F922B3CD /* CallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallManager.swift; sourceTree = "<group>"; };
-		AB4F5125591622CCA0E61452 /* KeypadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeypadView.swift; sourceTree = "<group>"; };
+		AF52B61F31B053E7B685B597 /* SmsComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmsComposerView.swift; sourceTree = "<group>"; };
 		B2D884C4851BDD152DB1AF00 /* SMSDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SMSDetailView.swift; sourceTree = "<group>"; };
+		B3CA40B39F2D13C01B90FBDF /* DialerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DialerView.swift; sourceTree = "<group>"; };
+		B5380BE09DE6717FF09DBCF7 /* CallHistoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallHistoryModels.swift; sourceTree = "<group>"; };
 		B87EA7DA61CABF2D89D17CAE /* AudioStreamManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioStreamManager.swift; sourceTree = "<group>"; };
+		CA361F309119DFAE9A54FC18 /* CallHistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallHistoryManager.swift; sourceTree = "<group>"; };
+		CB54FC3738B1E3368FA1FDBF /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		E05B4847784CF79FDC46DBF3 /* PerformanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceMonitor.swift; sourceTree = "<group>"; };
 		F34E9709AD4EB20C8676DBEA /* PhoneBridge.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PhoneBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -42,6 +56,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		04C41D96E5135FD0D6C5C4F6 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				AD2EE4BA5B6385348C17988C /* Views */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		1461881A5AEDBDC36C498EE3 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				CA361F309119DFAE9A54FC18 /* CallHistoryManager.swift */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
 		45CF36901949355B8E1332A6 = {
 			isa = PBXGroup;
 			children = (
@@ -65,6 +95,10 @@
 				FDC917F02AABE9C82B776E94 /* Audio */,
 				C63566F704A493519AF2D59A /* Bluetooth */,
 				4D50E81D73D1FDE241F58EA6 /* CallKit */,
+				1461881A5AEDBDC36C498EE3 /* Data */,
+				A0F97B8B5F799B5D5C55F556 /* Models */,
+				04C41D96E5135FD0D6C5C4F6 /* UI */,
+				F550907F761D2560D72A3FA4 /* Utils */,
 				C2FF42630E7A128277C884E2 /* Views */,
 			);
 			path = Sources;
@@ -78,6 +112,23 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		A0F97B8B5F799B5D5C55F556 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B5380BE09DE6717FF09DBCF7 /* CallHistoryModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		AD2EE4BA5B6385348C17988C /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B3CA40B39F2D13C01B90FBDF /* DialerView.swift */,
+				AF52B61F31B053E7B685B597 /* SmsComposerView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
 		AEA447BF19FA663E7B632672 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -89,8 +140,8 @@
 		C2FF42630E7A128277C884E2 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				0D26B3586EFBCC5FFB94C819 /* CallHistoryView.swift */,
 				6BE37BF9C4BBE7BD8C9B7A1A /* ContentView.swift */,
-				AB4F5125591622CCA0E61452 /* KeypadView.swift */,
 				B2D884C4851BDD152DB1AF00 /* SMSDetailView.swift */,
 			);
 			path = Views;
@@ -104,9 +155,19 @@
 			path = Bluetooth;
 			sourceTree = "<group>";
 		};
+		F550907F761D2560D72A3FA4 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				CB54FC3738B1E3368FA1FDBF /* Logger.swift */,
+				E05B4847784CF79FDC46DBF3 /* PerformanceMonitor.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
 		FDC917F02AABE9C82B776E94 /* Audio */ = {
 			isa = PBXGroup;
 			children = (
+				1D6EAFED9BC8109A7559856C /* AudioProcessing.swift */,
 				B87EA7DA61CABF2D89D17CAE /* AudioStreamManager.swift */,
 				61C236317586D438952965C4 /* L2CAPChannelManager.swift */,
 			);
@@ -176,14 +237,21 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				828E8F9AAC5FCA01772EFF27 /* AudioProcessing.swift in Sources */,
 				EED5547C928A8BDB0D600252 /* AudioStreamManager.swift in Sources */,
 				19D70F1F427F3A1759F30F52 /* BLEClient.swift in Sources */,
+				415E01011062B12C09E7A087 /* CallHistoryManager.swift in Sources */,
+				81F4E65C2A15A92EC5AA0250 /* CallHistoryModels.swift in Sources */,
+				D5FC7D347132FFA4FF8D20D0 /* CallHistoryView.swift in Sources */,
 				FA964D3F115A01A8F633AF94 /* CallManager.swift in Sources */,
 				5D45CBE52E11475A11DF1084 /* ContentView.swift in Sources */,
-				2103D0AE6741D9F5E32445B5 /* KeypadView.swift in Sources */,
+				75F3577613F779CF9FE55F5B /* DialerView.swift in Sources */,
 				90F846ABB89AB2773CEDED31 /* L2CAPChannelManager.swift in Sources */,
+				2A85AF2E33F5EC275253A1C6 /* Logger.swift in Sources */,
+				BA3BDFE03FD113A83D375CF9 /* PerformanceMonitor.swift in Sources */,
 				7A2D787597391A9497BEBB60 /* PhoneBridgeApp.swift in Sources */,
 				C640C9E3B2CB8BF6C2D29D2D /* SMSDetailView.swift in Sources */,
+				A0DB1B951EC3A0E18924D4F5 /* SmsComposerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
