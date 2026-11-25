@@ -95,8 +95,15 @@ class AudioBridgeManager(private val context: Context) {
 
             // مرحله ۳: اسپیکر را فعال کنیم تا AudioRecord بتواند صدای طرف مقابل را بگیرد
             audioManager?.isSpeakerphoneOn = true
+            
+            // ✅ مرحله ۴: تنظیم volume برای کیفیت بهتر
+            audioManager?.setStreamVolume(
+                AudioManager.STREAM_VOICE_CALL,
+                audioManager.getStreamMaxVolume(AudioManager.STREAM_VOICE_CALL),
+                0
+            )
 
-            Log.i(TAG, "✅ Audio mode set to IN_CALL + BluetoothSCO started + Speakerphone ON")
+            Log.i(TAG, "✅ Audio mode: IN_CALL + BluetoothSCO + Speakerphone + Volume optimized")
 
             initializeAudioComponents()
             Log.i(TAG, "Audio streaming started با Opus codec (16kHz mono, 20ms frames, 20kbps)")
@@ -114,7 +121,12 @@ class AudioBridgeManager(private val context: Context) {
         opusEncoder = OpusEncoder(SAMPLE_RATE, CHANNELS, OpusApplication.OPUS_APPLICATION_VOIP)
         opusEncoder?.setBitrate(currentBitrate)
         opusEncoder?.setSignalType(ConcentusOpusSignal.OPUS_SIGNAL_VOICE)
-        Log.i(TAG, "Opus encoder initialized with bitrate: $currentBitrate bps")
+        
+        // ✅ بهینه‌سازی اضافی Opus برای VoIP
+        opusEncoder?.setComplexity(5)  // 0-10, 5 = متوسط (CPU friendly, کیفیت خوب)
+        opusEncoder?.setPacketLossPerc(10)  // تحمل 10% packet loss
+        
+        Log.i(TAG, "Opus encoder initialized: bitrate=$currentBitrate bps, complexity=5, loss_tolerance=10%")
         
         opusDecoder = OpusDecoder(SAMPLE_RATE, CHANNELS)
 
@@ -232,15 +244,25 @@ class AudioBridgeManager(private val context: Context) {
      */
     private fun retryAudioSetup() {
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            if (!isStreaming) return@postDelayed
+            if (!isStreaming) {
+                Log.d(TAG, "Streaming already stopped, skipping retry")
+                return@postDelayed
+            }
             
-            Log.i(TAG, "Retrying audio setup...")
+            Log.i(TAG, "🔄 Retrying audio setup after failure...")
             try {
                 initializeAudioComponents()
-                Log.i(TAG, "✅ Audio streaming started on retry")
+                Log.i(TAG, "✅ Audio streaming recovered successfully")
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Failed to start audio streaming after retry", e)
+                Log.e(TAG, "❌ Failed to recover audio streaming", e)
                 stopStreaming()
+                
+                // اطلاع‌رسانی به iPhone که audio streaming متوقف شد
+                val errorPayload = org.json.JSONObject().apply {
+                    put("type", "AUDIO_ERROR")
+                    put("message", "Failed to start audio streaming")
+                }
+                BLEPeripheralServer.instance?.sendNotification(errorPayload.toString())
             }
         }, 1000)
     }
