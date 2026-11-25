@@ -149,7 +149,7 @@ struct SMSDetailView: View {
     private func sendReply() {
         let text = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        bleClient.sendSMS(recipient: sender, message: text)
+        bleClient.sendSMS(phoneNumber: sender, message: text)
         replyText = ""
         showSentConfirmation = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {

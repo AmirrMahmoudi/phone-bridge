@@ -248,6 +248,14 @@ public struct PerformanceMetric {
     var min: Double = Double.greatestFiniteMagnitude
     var max: Double = -Double.greatestFiniteMagnitude
     
+    init(name: String, unit: MetricUnit, value: Double? = nil) {
+        self.name = name
+        self.unit = unit
+        if let value = value {
+            self.addValue(value)
+        }
+    }
+    
     mutating func addValue(_ value: Double) {
         count += 1
         sum += value

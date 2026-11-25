@@ -247,6 +247,45 @@ public struct LogEntry: Codable {
     public let function: String
     public let line: Int
     
+    // Manual Codable implementation
+    enum CodingKeys: String, CodingKey {
+        case timestamp, level, category, message, file, function, line
+    }
+    
+    public init(timestamp: Date, level: Logger.LogLevel, category: Logger.Category, message: String, file: String, function: String, line: Int) {
+        self.timestamp = timestamp
+        self.level = level
+        self.category = category
+        self.message = message
+        self.file = file
+        self.function = function
+        self.line = line
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+        let levelRawValue = try container.decode(Int.self, forKey: .level)
+        level = Logger.LogLevel(rawValue: levelRawValue) ?? .info
+        let categoryRawValue = try container.decode(String.self, forKey: .category)
+        category = Logger.Category(rawValue: categoryRawValue) ?? .system
+        message = try container.decode(String.self, forKey: .message)
+        file = try container.decode(String.self, forKey: .file)
+        function = try container.decode(String.self, forKey: .function)
+        line = try container.decode(Int.self, forKey: .line)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(timestamp, forKey: .timestamp)
+        try container.encode(level.rawValue, forKey: .level)
+        try container.encode(category.rawValue, forKey: .category)
+        try container.encode(message, forKey: .message)
+        try container.encode(file, forKey: .file)
+        try container.encode(function, forKey: .function)
+        try container.encode(line, forKey: .line)
+    }
+    
     public var formattedMessage: String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "HH:mm:ss.SSS"

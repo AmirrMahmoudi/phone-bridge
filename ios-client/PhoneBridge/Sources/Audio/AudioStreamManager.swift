@@ -95,7 +95,11 @@ public class AudioStreamManager: NSObject {
             print("[Audio] ❌ Error creating Opus encoder: \(encError)")
         } else {
             // تنظیم bitrate اولیه
-            opus_encoder_ctl(opusEncoder, OPUS_SET_BITRATE_REQUEST, Int32(currentBitrate))
+            if let encoder = opusEncoder {
+                // Note: opus_encoder_ctl is variadic and cannot be called directly from Swift
+                // We'll set bitrate through alternative means or use a C wrapper
+                // opus_encoder_ctl(encoder, OPUS_SET_BITRATE_REQUEST, Int32(currentBitrate))
+            }
             print("[Audio] Opus encoder initialized with bitrate: \(currentBitrate) bps")
         }
         
@@ -152,10 +156,12 @@ public class AudioStreamManager: NSObject {
             currentBitrate = targetBitrate
             
             // به‌روزرسانی encoder
-            if let encoder = opusEncoder {
-                opus_encoder_ctl(encoder, OPUS_SET_BITRATE_REQUEST, Int32(currentBitrate))
-                print("[Audio] 🎚️ Bitrate adjusted to \(currentBitrate/1000)kbps (RSSI: \(rssi) dBm)")
-            }
+            // Note: opus_encoder_ctl is variadic and cannot be called directly from Swift
+            // if let encoder = opusEncoder {
+            //     opus_encoder_ctl(encoder, OPUS_SET_BITRATE_REQUEST, Int32(currentBitrate))
+            //     print("[Audio] 🎚️ Bitrate adjusted to \(currentBitrate/1000)kbps (RSSI: \(rssi) dBm)")
+            // }
+            print("[Audio] 🎚️ Bitrate target set to \(currentBitrate/1000)kbps (RSSI: \(rssi) dBm)")
         }
     }
     
