@@ -702,7 +702,7 @@ class BLEPeripheralServer(private val context: Context) {
     /**
      * شروع استریم صوت از طریق کانال L2CAP
      */
-    private fun startAudioStreaming() {
+    fun startAudioStreaming() {
         val channelManager = l2capChannelManager
         val audioManager = audioBridgeManager
         
@@ -729,7 +729,7 @@ class BLEPeripheralServer(private val context: Context) {
     /**
      * توقف استریم صوت
      */
-    private fun stopAudioStreaming() {
+    fun stopAudioStreaming() {
         audioBridgeManager?.stopStreaming()
         Log.i(TAG, "Audio streaming stopped")
     }

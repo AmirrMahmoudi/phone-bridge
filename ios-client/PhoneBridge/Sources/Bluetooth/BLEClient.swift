@@ -254,6 +254,7 @@ public class BLEClient: NSObject, ObservableObject {
         let callId = "call_\(Int(Date().timeIntervalSince1970 * 1000))"
         log("📞 در حال برقراری تماس با \(phoneNumber)")
         sendCommand(["cmd": "DIAL_CALL", "phoneNumber": phoneNumber, "callId": callId])
+        CallManager.shared.startOutgoingCall(handle: phoneNumber)
         onActivityEvent?("phone.fill.arrow.up.right", "تماس خروجی", phoneNumber, nil, phoneNumber)
         completion(true, callId, nil)
     }
@@ -450,6 +451,13 @@ extension BLEClient: CBPeripheralDelegate {
             
             // فراخوانی رابط کاربری بومی آیفون با CallKit (با قابلیت به‌روزرسانی زنده)
             CallManager.shared.reportOrUpdateIncomingCall(uuid: callUUID, handle: callerNumber, callerName: displayName)
+
+        case "CALL_ACTIVE":
+            log("🔊 تماس فعال شد — شروع استریم صدا روی آیفون")
+            AudioStreamManager.shared.startAudioSession()
+            if let channel = l2capManager {
+                AudioStreamManager.shared.startReceiving(channel: channel)
+            }
 
         case "CALL_ENDED":
             if let activeUUID = CallManager.shared.activeCallUUID {

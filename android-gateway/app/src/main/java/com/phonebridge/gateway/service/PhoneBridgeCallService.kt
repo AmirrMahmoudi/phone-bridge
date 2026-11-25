@@ -65,6 +65,13 @@ class PhoneBridgeCallService : InCallService() {
 
                 Call.STATE_ACTIVE -> {
                     Log.d(TAG, "Call is now active")
+                    // شروع استریم صوت روی L2CAP برای تماس‌های ورودی و خروجی
+                    BLEPeripheralServer.instance?.startAudioStreaming()
+                    val activePayload = JSONObject().apply {
+                        put("type", "CALL_ACTIVE")
+                    }
+                    BLEPeripheralServer.instance?.sendNotification(activePayload.toString())
+
                     // به‌روزرسانی وضعیت صوت
                     com.phonebridge.gateway.MainActivity.instance?.runOnUiThread {
                         com.phonebridge.gateway.MainActivity.instance?.let { activity ->
@@ -78,6 +85,7 @@ class PhoneBridgeCallService : InCallService() {
 
                 Call.STATE_DISCONNECTED -> {
                     Log.d(TAG, "Call disconnected.")
+                    BLEPeripheralServer.instance?.stopAudioStreaming()
                     val payload = JSONObject().apply {
                         put("type", "CALL_ENDED")
                         put("reason", "DISCONNECTED")
