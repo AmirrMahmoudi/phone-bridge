@@ -649,6 +649,12 @@ class BLEPeripheralServer(private val context: Context) {
 
     private fun answerCall() {
         com.phonebridge.gateway.service.PhoneBridgeForegroundService.instance?.setAnsweredFromIphone(true)
+        
+        // بی‌صدا کردن زنگ اندروید تا تداخل نشود
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val prevRingerMode = audioManager?.ringerMode ?: AudioManager.RINGER_MODE_NORMAL
+        audioManager?.ringerMode = AudioManager.RINGER_MODE_SILENT
+        
         if (PhoneBridgeCallService.currentCall != null) {
             PhoneBridgeCallService.answerCurrentCall()
             Log.i(TAG, "Call answered via InCallService.")
@@ -661,12 +667,15 @@ class BLEPeripheralServer(private val context: Context) {
                 if (context.checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED) {
                     telecom?.acceptRingingCall()
                     Log.i(TAG, "Call answered via TelecomManager.acceptRingingCall()")
-                    
-                    // شروع استریم صوت
                     startAudioStreaming()
                 }
             }
         }
+        
+        // بازگرداندن حالت زنگ بعد از ۱ ثانیه (تماس وصل شده)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            audioManager?.ringerMode = prevRingerMode
+        }, 1000)
     }
 
     private fun hangupCall() {

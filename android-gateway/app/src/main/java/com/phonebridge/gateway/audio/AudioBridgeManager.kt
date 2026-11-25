@@ -69,6 +69,8 @@ class AudioBridgeManager(private val context: Context) {
 
     /**
      * شروع استریم دوطرفه صوت با استفاده از سوکت L2CAP
+     * هنگام تماس فعال، صدا را از خط مخابراتی دریافت و به آیفون ارسال می‌کند
+     * و صدای آیفون را دریافت و به خط مخابراتی تزریق می‌کند
      */
     fun startStreaming(socket: BluetoothSocket) {
         if (isStreaming) {
@@ -81,14 +83,25 @@ class AudioBridgeManager(private val context: Context) {
 
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
-            audioManager?.isSpeakerphoneOn = false
+
+            // مرحله ۱: تنظیم حالت صوت به MODE_IN_CALL برای دسترسی به خط مخابراتی
+            audioManager?.mode = AudioManager.MODE_IN_CALL
+
+            // مرحله ۲: فعال کردن Bluetooth SCO - این کلید اصلی برای ارسال صدا از/به خط مخابراتی است
+            // وقتی SCO فعال می‌شود، AudioRecord می‌تواند صدای خط مخابراتی را دریافت کند
+            audioManager?.isBluetoothScoOn = true
+            @Suppress("DEPRECATION")
+            audioManager?.startBluetoothSco()
+
+            // مرحله ۳: اسپیکر را فعال کنیم تا AudioRecord بتواند صدای طرف مقابل را بگیرد
+            audioManager?.isSpeakerphoneOn = true
+
+            Log.i(TAG, "✅ Audio mode set to IN_CALL + BluetoothSCO started + Speakerphone ON")
 
             initializeAudioComponents()
             Log.i(TAG, "Audio streaming started با Opus codec (16kHz mono, 20ms frames, 20kbps)")
         } catch (e: Exception) {
             Log.e(TAG, "خطا در راه‌اندازی audio streaming", e)
-            // تلاش مجدد یک بار
             retryAudioSetup()
         }
     }
@@ -105,14 +118,18 @@ class AudioBridgeManager(private val context: Context) {
         
         opusDecoder = OpusDecoder(SAMPLE_RATE, CHANNELS)
 
-        // راه‌اندازی AudioRecord برای ضبط صدا با تلاش از چند منبع صوتی سازگار
+        // راه‌اندازی AudioRecord برای ضبط صدا
+        // ترتیب منابع: VOICE_DOWNLINK (صدای خط مخابراتی) → VOICE_CALL → VOICE_COMMUNICATION (میکروفون)
         val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG_IN, AUDIO_FORMAT)
         val bufferSize = maxOf(minBufferSize, FRAME_SIZE * 2 * 4)
 
         val sourcesToTry = arrayOf(
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-            MediaRecorder.AudioSource.MIC,
-            MediaRecorder.AudioSource.VOICE_RECOGNITION
+            MediaRecorder.AudioSource.VOICE_DOWNLINK,  // ۱. صدای دریافتی از خط مخابراتی (Android 10+)
+            MediaRecorder.AudioSource.VOICE_CALL,       // ۲. کل صدای تماس (نیاز به دسترسی سیستمی)
+            MediaRecorder.AudioSource.VOICE_UPLINK,     // ۳. صدای ارسالی به خط مخابراتی
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION, // ۴. میکروفون با echo cancellation
+            MediaRecorder.AudioSource.MIC,              // ۵. میکروفون خام
+            MediaRecorder.AudioSource.VOICE_RECOGNITION // ۶. آخرین گزینه
         )
 
         for (source in sourcesToTry) {
@@ -354,6 +371,12 @@ class AudioBridgeManager(private val context: Context) {
         bitrateAdjustmentRunnable = null
 
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+        // توقف Bluetooth SCO و بازگرداندن حالت عادی صوت
+        @Suppress("DEPRECATION")
+        audioManager?.stopBluetoothSco()
+        audioManager?.isBluetoothScoOn = false
+        audioManager?.isSpeakerphoneOn = false
         audioManager?.mode = AudioManager.MODE_NORMAL
 
         captureThread?.interrupt()

@@ -160,9 +160,25 @@ extension CallManager: CXProviderDelegate {
     }
 
     public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
-        print("[CallKit] Audio session activated by system")
+        print("[CallKit] Audio session activated by system — configuring for VoIP")
+        // CallKit به ما audioSession می‌دهد. باید آن را با تنظیمات صحیح برای VoIP روی بلوتوث راه‌اندازی کنیم
+        do {
+            // voiceChat mode + allowBluetooth: صدا از میکروفون آیفون گرفته شده و از اسپیکر/هدفون پخش می‌شود
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .voiceChat,
+                options: [.allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
+            )
+            try audioSession.setPreferredSampleRate(16000)
+            try audioSession.setPreferredIOBufferDuration(0.02)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            print("[CallKit] ✅ Audio session configured for VoIP (16kHz, voiceChat, Bluetooth enabled)")
+        } catch {
+            print("[CallKit] ❌ Failed to configure audio session: \(error)")
+        }
+
         AudioStreamManager.shared.startAudioSession()
-        
+
         // شروع دریافت صدا از کانال L2CAP
         if let channel = BLEClient.shared.getL2CAPChannel() {
             AudioStreamManager.shared.startReceiving(channel: channel)
@@ -172,5 +188,7 @@ extension CallManager: CXProviderDelegate {
     public func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
         print("[CallKit] Audio session deactivated")
         AudioStreamManager.shared.stopAudioSession()
+        // بازگرداندن audio session به حالت عادی
+        try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
     }
 }

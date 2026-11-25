@@ -38,28 +38,32 @@ public class AudioStreamManager: NSObject {
         guard !isRunning else { return }
         
         let audioSession = AVAudioSession.sharedInstance()
-        do {
-            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .defaultToSpeaker])
-            try audioSession.setPreferredSampleRate(sampleRate)
-            try audioSession.setPreferredIOBufferDuration(0.02) // 20ms بافر صوتی
-            try audioSession.setActive(true)
-            
-            // راه‌اندازی کدک‌های Opus
-            setupOpusCodecs()
-            
-            // راه‌اندازی audio processor
-            audioProcessor = AudioProcessing(frameSize: frameSize, sampleRate: Int(sampleRate))
-            
-            // راه‌اندازی AVAudioEngine
-            setupAudioEngine()
-            
-            self.isRunning = true
-            print("[Audio] Audio session started با Opus codec + Echo Cancellation + Noise Suppression (16kHz mono, 20ms frames)")
-        } catch {
-            print("[Audio] Failed to activate audio session: \(error)")
-            // تلاش مجدد یک بار
-            retryAudioSessionSetup()
+        // اگر CallKit قبلاً audio session را فعال کرده، فقط engine را راه‌اندازی کن
+        let isAlreadyActive = audioSession.category == .playAndRecord
+        if !isAlreadyActive {
+            do {
+                try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .allowBluetoothA2DP])
+                try audioSession.setPreferredSampleRate(sampleRate)
+                try audioSession.setPreferredIOBufferDuration(0.02)
+                try audioSession.setActive(true)
+            } catch {
+                print("[Audio] Failed to activate audio session: \(error)")
+                retryAudioSessionSetup()
+                return
+            }
         }
+        
+        // راه‌اندازی کدک‌های Opus
+        setupOpusCodecs()
+        
+        // راه‌اندازی audio processor
+        audioProcessor = AudioProcessing(frameSize: frameSize, sampleRate: Int(sampleRate))
+        
+        // راه‌اندازی AVAudioEngine
+        setupAudioEngine()
+        
+        self.isRunning = true
+        print("[Audio] ✅ Audio session started با Opus codec + Echo Cancellation + Noise Suppression (16kHz mono, 20ms frames)")
     }
     
     /**
