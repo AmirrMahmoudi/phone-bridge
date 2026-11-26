@@ -473,6 +473,16 @@ class BLEPeripheralServer(private val context: Context) {
         }
     }
 
+
+    /**
+     * بررسی اینکه آیا device های iOS متصل داریم
+     * Thread-safe با استفاده از synchronized
+     */
+    fun hasConnectedDevices(): Boolean {
+        synchronized(connectedDevices) {
+            return connectedDevices.isNotEmpty()
+        }
+    }
     /**
      * ارسال درصد باتری و نام اپراتور سیم‌کارت به آیفون
      */

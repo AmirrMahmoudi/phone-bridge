@@ -10,7 +10,7 @@
 
 ## Tasks
 
-- [ ] 1. Add hasConnectedDevices() to BLEPeripheralServer - 15min
+- [-] 1. Add hasConnectedDevices() to BLEPeripheralServer - 15min
 - [ ] 2. Remove Bluetooth SCO routing from AudioBridgeManager - 30min  
 - [ ] 3. Delay CallKit start until DIAL_RESULT (iOS) - 1h
 - [ ] 4. Wait for CALL_ACTIVE before audio session (iOS) - 1h
