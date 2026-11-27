@@ -117,20 +117,21 @@ class BLEPeripheralServer(private val context: Context) {
             }
             startListening()
             
-            // به‌روزرسانی PSM با تاخیر کوتاه برای اطمینان از ready بودن
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                if (currentPsm > 0) {
-                    updatePsmCharacteristic(currentPsm)
-                    Log.i(TAG, "✅ PSM characteristic updated with value: $currentPsm")
-                    
-                    // ارسال event به iOS که PSM آماده است
-                    val payload = JSONObject().apply {
-                        put("type", "L2CAP_READY")
-                        put("psm", currentPsm)
-                    }
-                    sendNotification(payload.toString())
+            // ✅ FIX: Update PSM synchronously BEFORE continuing
+            val psm = currentPsm
+            if (psm > 0) {
+                updatePsmCharacteristic(psm)
+                Log.i(TAG, "✅ PSM characteristic updated synchronously: $psm")
+                
+                // Keep L2CAP_READY notification as backup
+                val payload = JSONObject().apply {
+                    put("type", "L2CAP_READY")
+                    put("psm", psm)
                 }
-            }, 500)
+                sendNotification(payload.toString())
+            } else {
+                Log.e(TAG, "❌ Failed to allocate L2CAP PSM")
+            }
         }
         
         // شروع ارسال heartbeat
