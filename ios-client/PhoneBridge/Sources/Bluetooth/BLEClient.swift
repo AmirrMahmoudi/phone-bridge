@@ -54,6 +54,9 @@ public class BLEClient: NSObject, ObservableObject {
     // مدیر کانال L2CAP برای انتقال صوت
     private var l2capManager: L2CAPChannelManager?
     
+    // نگهداری تماس خروجی pending تا زمان دریافت DIAL_RESULT
+    private var pendingOutgoingCall: (uuid: UUID, handle: String)? = nil
+    
     // Callback برای ثبت رویدادها در ActivityLog
     public var onActivityEvent: ((String, String, String, String?, String?) -> Void)?
     
@@ -206,13 +209,15 @@ public class BLEClient: NSObject, ObservableObject {
         let trimmed = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         log("📞 در حال برقراری تماس خروجی با: \(trimmed)")
+        
+        // ذخیره تماس pending تا DIAL_RESULT دریافت شود
+        pendingOutgoingCall = (uuid: UUID(), handle: trimmed)
+        log("⏳ Waiting for DIAL_RESULT from Android...")
+        
         sendCommand(["cmd": "DIAL_CALL", "phoneNumber": trimmed])
 
         // ثبت در ActivityLog
         onActivityEvent?("phone.arrow.up.right", "تماس خروجی", trimmed, nil, nil)
-
-        // رجیستر تماس در CallKit
-        CallManager.shared.startOutgoingCall(handle: trimmed)
         
         // ✅ FIX: AudioSession را الان شروع نکن - منتظر CALL_ACTIVE باش
         // AudioSession زمانی شروع می‌شود که Android تماس را برقرار کند و CALL_ACTIVE بفرستد
@@ -454,7 +459,7 @@ extension BLEClient: CBPeripheralDelegate {
 
         case "CALL_ACTIVE":
             log("🔊 تماس فعال شد — شروع استریم صدا روی آیفون")
-            AudioStreamManager.shared.startAudioSession()
+            CallManager.shared.notifyCallActive()
             if let channel = l2capManager {
                 AudioStreamManager.shared.startReceiving(channel: channel)
             }
@@ -511,6 +516,36 @@ extension BLEClient: CBPeripheralDelegate {
             }
             if let carrier = json["simCarrier"] as? String {
                 DispatchQueue.main.async { self.simCarrier = carrier }
+            }
+
+        case "DIAL_RESULT":
+            let success = json["success"] as? Bool ?? false
+            let callId = json["callId"] as? String
+            let error = json["error"] as? String
+            
+            if success {
+                log("✅ Dial successful: callId=\(callId ?? "unknown")")
+                CallManager.shared.startOutgoingCall(handle: "")
+                log("📱 CallKit started for outgoing call")
+            } else {
+                log("❌ Dial failed: \(error ?? "unknown")")
+            }
+
+        case "L2CAP_READY":
+            if let psm = json["psm"] as? Int, psm > 0 {
+                log("📡 L2CAP channel ready, PSM: \(psm)")
+                if let peripheral = self.peripheral {
+                    connectL2CAPChannel(to: peripheral, psm: UInt16(psm))
+                }
+            }
+
+        case "SMS_SEND_RESULT":
+            let success = json["success"] as? Bool ?? false
+            let error = json["error"] as? String
+            if success {
+                log("✅ SMS sent successfully")
+            } else {
+                log("❌ SMS failed: \(error ?? "unknown")")
             }
 
         default:
