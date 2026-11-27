@@ -87,11 +87,6 @@ class AudioBridgeManager(private val context: Context) {
             // مرحله ۱: تنظیم حالت صوت به MODE_IN_CALL برای دسترسی به خط مخابراتی
             audioManager?.mode = AudioManager.MODE_IN_CALL
 
-            // مرحله ۲: فعال کردن Bluetooth SCO - این کلید اصلی برای ارسال صدا از/به خط مخابراتی است
-            // وقتی SCO فعال می‌شود، AudioRecord می‌تواند صدای خط مخابراتی را دریافت کند
-            audioManager?.isBluetoothScoOn = true
-            @Suppress("DEPRECATION")
-            audioManager?.startBluetoothSco()
 
             // مرحله ۳: اسپیکر را فعال کنیم تا AudioRecord بتواند صدای طرف مقابل را بگیرد
             audioManager?.isSpeakerphoneOn = true
@@ -103,7 +98,7 @@ class AudioBridgeManager(private val context: Context) {
                 0
             )
 
-            Log.i(TAG, "✅ Audio mode: IN_CALL + BluetoothSCO + Speakerphone + Volume optimized")
+            Log.i(TAG, "✅ Audio mode: IN_CALL + Speakerphone + Volume optimized")
 
             initializeAudioComponents()
             Log.i(TAG, "Audio streaming started با Opus codec (16kHz mono, 20ms frames, 20kbps)")
@@ -392,10 +387,6 @@ class AudioBridgeManager(private val context: Context) {
 
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
-        // توقف Bluetooth SCO و بازگرداندن حالت عادی صوت
-        @Suppress("DEPRECATION")
-        audioManager?.stopBluetoothSco()
-        audioManager?.isBluetoothScoOn = false
         audioManager?.isSpeakerphoneOn = false
         audioManager?.mode = AudioManager.MODE_NORMAL
 
