@@ -525,10 +525,14 @@ extension BLEClient: CBPeripheralDelegate {
             
             if success {
                 log("✅ Dial successful: callId=\(callId ?? "unknown")")
-                CallManager.shared.startOutgoingCall(handle: "")
-                log("📱 CallKit started for outgoing call")
+                if let pending = pendingOutgoingCall {
+                    CallManager.shared.startOutgoingCall(handle: pending.handle)
+                    log("📱 CallKit started for outgoing call")
+                }
+                pendingOutgoingCall = nil
             } else {
                 log("❌ Dial failed: \(error ?? "unknown")")
+                pendingOutgoingCall = nil
             }
 
         case "L2CAP_READY":
