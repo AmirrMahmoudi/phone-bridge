@@ -16,6 +16,7 @@ public class CallManager: NSObject, ObservableObject {
     @Published public var activeCallUUID: UUID?
     @Published public var callerName: String = ""
     @Published public var isCallKitAvailable: Bool = false
+    private var isCallActive: Bool = false
 
     override init() {
         super.init()
@@ -118,6 +119,15 @@ public class CallManager: NSObject, ObservableObject {
             }
         }
         self.activeCallUUID = nil
+        self.isCallActive = false
+    }
+    
+    /// فراخوانی پس از دریافت CALL_ACTIVE از اندروید
+    public func notifyCallActive() {
+        guard !isCallActive else { return }
+        isCallActive = true
+        print("[CallKit] ✅ Call active, starting audio stream...")
+        AudioStreamManager.shared.startAudioSession()
     }
 }
 
@@ -158,7 +168,7 @@ extension CallManager: CXProviderDelegate {
     }
 
     public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
-        print("[CallKit] Audio session activated by system — configuring for VoIP")
+        print("[CallKit] ⏳ Waiting for CALL_ACTIVE from Android...")
         // CallKit به ما audioSession می‌دهد. باید آن را با تنظیمات صحیح برای VoIP روی بلوتوث راه‌اندازی کنیم
         do {
             // voiceChat mode + allowBluetooth: صدا از میکروفون آیفون گرفته شده و از اسپیکر/هدفون پخش می‌شود
@@ -175,7 +185,9 @@ extension CallManager: CXProviderDelegate {
             print("[CallKit] ❌ Failed to configure audio session: \(error)")
         }
 
-        AudioStreamManager.shared.startAudioSession()
+        // ✅ FIX: AudioSession را الان شروع نکن - منتظر CALL_ACTIVE باش
+        // AudioStreamManager.shared.startAudioSession() حذف شد
+        // این جلوی timeout و هدر رفت منابع را می‌گیرد
 
         // شروع دریافت صدا از کانال L2CAP
         if let channel = BLEClient.shared.getL2CAPChannel() {
