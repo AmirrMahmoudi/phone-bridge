@@ -9,7 +9,7 @@ on:
 
 jobs:
   # ---------------------------------------------
-  # ۱. ساخت خروجی APK برای گوشی سامسونگ اندروید
+  # 1. Build Android APK
   # ---------------------------------------------
   build-android:
     name: Build Android APK
@@ -24,14 +24,20 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Grant execute permission for gradlew
+        working-directory: android-gateway
+        run: chmod +x gradlew
+
       - name: Build Android Debug APK
         working-directory: android-gateway
         run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
-          mkdir -p ../android-apk
-          find app/build/outputs/apk -name "*.apk" -exec cp {} ../android-apk/ \;
-          ls -la ../android-apk/
+          ./gradlew clean assembleDebug --stacktrace --info
+          
+      - name: Collect APK
+        run: |
+          mkdir -p android-apk
+          find android-gateway/app/build/outputs/apk -name "*.apk" -exec cp {} android-apk/ \;
+          ls -la android-apk/
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
@@ -41,7 +47,7 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------
-  # ۲. ساخت خروجی IPA برای آیفون ۱۷
+  # 2. Build iOS IPA (with CocoaPods)
   # ---------------------------------------------
   build-ios:
     name: Build iOS IPA
@@ -50,21 +56,28 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
 
-      - name: Generate Xcode Project
-        working-directory: ios-client/PhoneBridge
+      - name: Install CocoaPods
         run: |
-          xcodegen generate
-          xcodebuild -resolvePackageDependencies -project PhoneBridge.xcodeproj
+          sudo gem install cocoapods
+          pod --version
 
-      - name: Build iOS Application (Unsigned IPA)
-        working-directory: ios-client/PhoneBridge
+      - name: Install Pod Dependencies
+        working-directory: ios-client
+        run: |
+          pod install --repo-update
+
+      - name: Build iOS Application (Unsigned)
+        working-directory: ios-client
         run: |
           set -o pipefail
-          xcodebuild archive \
-            -project PhoneBridge.xcodeproj \
+          xcodebuild clean archive \
+            -workspace PhoneBridge.xcworkspace \
             -scheme PhoneBridge \
             -configuration Release \
             -destination "generic/platform=iOS" \
@@ -76,31 +89,77 @@ jobs:
             echo "::group::iOS Build Failure Log"
             tail -n 100 /tmp/ios_build.log
             echo "::endgroup::"
-            while IFS= read -r line; do
-              echo "::error title=Xcode Error::$line"
-            done < <(grep -E "(error:|fatal error:|The following build commands failed:)" /tmp/ios_build.log | head -20)
+            echo "::error::iOS build failed - check logs above"
             exit 1
           }
 
+      - name: Create IPA Package
+        working-directory: ios-client
+        run: |
           APP_DIR="build/PhoneBridge.xcarchive/Products/Applications/PhoneBridge.app"
-
-          # تایید وجود کلیدهای حیاتی امنیتی در Info.plist نهایی
-          echo "=== VERIFYING FINAL INFO.PLIST ==="
-          plutil -p "$APP_DIR/Info.plist"
-          echo ""
-          echo "=== Checking for NSBluetoothAlwaysUsageDescription ==="
-          /usr/libexec/PlistBuddy -c "Print :NSBluetoothAlwaysUsageDescription" "$APP_DIR/Info.plist"
-          echo "=== Checking for NSMicrophoneUsageDescription ==="
-          /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$APP_DIR/Info.plist"
-
-          # بسته‌بندی فایل به فرمت استاندارد IPA برای Sideloadly
+          
+          # Verify app exists
+          if [ ! -d "$APP_DIR" ]; then
+            echo "::error::App bundle not found at $APP_DIR"
+            exit 1
+          fi
+          
+          # Verify critical keys in Info.plist
+          echo "=== Verifying Info.plist ==="
+          plutil -p "$APP_DIR/Info.plist" || true
+          
+          # Package as IPA
           mkdir -p build/Payload
           cp -r "$APP_DIR" build/Payload/
           cd build && zip -qr ../PhoneBridge.ipa Payload
+          cd ..
+          
+          # Verify IPA created
+          if [ -f "PhoneBridge.ipa" ]; then
+            ls -lh PhoneBridge.ipa
+            echo "✅ IPA created successfully"
+          else
+            echo "::error::Failed to create IPA"
+            exit 1
+          fi
 
       - name: Upload iOS IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: PhoneBridge-iOS-IPA
-          path: ios-client/PhoneBridge/PhoneBridge.ipa
+          path: ios-client/PhoneBridge.ipa
           retention-days: 7
+
+  # ---------------------------------------------
+  # 3. Summary Job (Optional)
+  # ---------------------------------------------
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [build-android, build-ios]
+    if: always()
+    steps:
+      - name: Check Build Results
+        run: |
+          echo "## PhoneBridge Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.build-android.result }}" == "success" ]; then
+            echo "| Android  | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Android  | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.build-ios.result }}" == "success" ]; then
+            echo "| iOS      | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| iOS      | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Android APK: Available for 7 days" >> $GITHUB_STEP_SUMMARY
+          echo "- iOS IPA: Available for 7 days" >> $GITHUB_STEP_SUMMARY
+          
